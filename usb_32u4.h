@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <util/atomic.h>
-
 enum {
     PTR_DATA = 0,
     PTR_FLASH = 1,
@@ -30,15 +28,15 @@ typedef struct fat_ptr_t {
 } fat_ptr_t;
 
 
-void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length);
-void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length);
+// void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length);
+// void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length);
 
 /// Checks if the given USB endpoint is ready
 static inline bool usb_is_endpoint_ready(uint8_t ep_num) {
     uint8_t result;
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    // ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
         UENUM = ep_num;
         result = UEINTX & (1<<RWAL);
-    }
+    // }
     return result;
 }

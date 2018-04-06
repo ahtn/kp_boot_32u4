@@ -25,9 +25,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include <avr/boot.h>
-#include <avr/pgmspace.h>
-#include <util/atomic.h>
 #include <util/delay.h>
 
 #include "usb.h"
@@ -56,16 +53,6 @@
 
 #define MAX_ENDPOINT 4
 
-#define ENDPOINT_COUNT 1
-
-static const uint8_t endpoint_config_table[] = {
-    1, EP_NUM_BOOT_KEYBOARD, EP_TYPE_INTERRUPT_IN,  EP_SIZE(EP_IN_SIZE_BOOT_KEYBOARD) | DEFAULT_BUFFERING,
-    // 0, EP_NUM_VENDOR_IN, EP_TYPE_INTERRUPT_IN,  EP_SIZE(EP_SIZE_VENDOR) | DEFAULT_BUFFERING,
-    // 0, EP_NUM_VENDOR_OUT, EP_TYPE_INTERRUPT_OUT, EP_SIZE(EP_SIZE_VENDOR) | DEFAULT_BUFFERING,
-    0
-};
-
-
 /**************************************************************************
  *
  *  Variables - these are the only non-stack RAM usage
@@ -86,9 +73,9 @@ typedef struct {
     uint8_t keys[BOOT_REPORT_KEY_COUNT];
 } hid_report_boot_keyboard_t;
 
+#if 0
 hid_report_boot_keyboard_t kb_report = {0};
 
-#if 0
 // protocol setting from the host.  We use exactly the same report
 // either way, so this variable only stores the setting since we
 // are required to be able to report which setting is in use.
@@ -134,13 +121,14 @@ void usb_init(void) {
 
 }
 
+#if defined(USE_KEYBOARD_TEST)
+
 // return 0 if the USB is not configured, or the configuration
 // number selected by the HOST
 uint8_t usb_configured(void) {
     return usb_configuration;
 }
 
-#if defined(USE_KEYBOARD_TEST)
 
 static inline int8_t usb_wait_endpoint(uint8_t ep_num);
 
@@ -169,39 +157,14 @@ static inline int8_t usb_wait_endpoint(uint8_t ep_num) {
     uint8_t timeout = UDFNUML + 50;
     while (1) {
         bool ready = false;
-        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-            ready = usb_is_endpoint_ready(ep_num);
-        }
+
+        ready = usb_is_endpoint_ready(ep_num);
+
         if (ready) {
             return 0;
         } else if (!usb_configuration || UDFNUML == timeout) {
             return -1; // has the USB gone offline or timed out
         }
-    }
-}
-
-#endif
-
-void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length) {
-    uint8_t i;
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-        UENUM = ep_number;
-        for (i = 0; i < length; ++i) {
-            UEDATX = src[i];
-        }
-        UEINTX = (1<<STALLEDI) | (1<<RXSTPI) | (1<<NAKOUTI) | (1<<RWAL);
-    }
-}
-
-void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
-    uint8_t i;
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-        UENUM = ep_number;
-        *length = UEBCX;
-        for (i = 0; i < *length; ++i) {
-            dest[i] = UEDATX;
-        }
-        UEINTX = 0x6B;
     }
 }
 
@@ -214,14 +177,35 @@ int8_t usb_keyboard_send(void)
         return ret_val;
     }
 
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-        if (usb_is_endpoint_ready(KEYBOARD_ENDPOINT)) {
-            usb_write_endpoint(KEYBOARD_ENDPOINT, (uint8_t*)&kb_report, 8);
-            ret_val = 0;
-        }
+    if (usb_is_endpoint_ready(KEYBOARD_ENDPOINT)) {
+        usb_write_endpoint(KEYBOARD_ENDPOINT, (uint8_t*)&kb_report, 8);
+        ret_val = 0;
     }
 
     return ret_val;
+}
+
+void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length) {
+    uint8_t i;
+    UENUM = ep_number;
+    for (i = 0; i < length; ++i) {
+        UEDATX = src[i];
+    }
+    UEINTX = (1<<STALLEDI) | (1<<RXSTPI) | (1<<NAKOUTI) | (1<<RWAL);
+}
+
+#endif
+
+static inline
+void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
+    uint8_t i;
+
+    UENUM = ep_number;
+    *length = UEBCX;
+    for (i = 0; i < *length; ++i) {
+        dest[i] = UEDATX;
+    }
+    UEINTX = 0x6B;
 }
 
 /**************************************************************************
@@ -442,26 +426,19 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
         } break;
 
         case SET_CONFIGURATION: {
-            const uint8_t *cfg;
-            uint8_t i;
+            // const uint8_t *cfg;
+            // uint8_t i;
 
             if (req->bmRequestType == 0) {
                 usb_configuration = req->wValue;
                 usb_send_in();
-                cfg = endpoint_config_table;
-                for (i=0; i < ENDPOINT_COUNT; i++) {
-                    uint8_t en, ep_num;
+                // cfg = endpoint_config_table;
 
-                    en = *cfg++;
-                    ep_num = *cfg++;
-                    UENUM = ep_num;
+                UENUM = EP_NUM_BOOT_KEYBOARD;
+                UECONX = (1<<EPEN);
 
-                    UECONX = en;
-                    if (en) {
-                        UECFG0X = *cfg++;
-                        UECFG1X = *cfg++;
-                    }
-                }
+                UECFG0X = EP_TYPE_INTERRUPT_IN;
+                UECFG1X = EP_SIZE(EP_IN_SIZE_BOOT_KEYBOARD) | DEFAULT_BUFFERING;
             }
             UERST = 0x1E;
             UERST = 0;

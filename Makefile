@@ -51,7 +51,7 @@ AVRDUDE_CMD = avrdude -p $(MCU) -c $(AVRDUDE_PROGRAMMER)
 CFLAGS += -Wno-error=unused-function
 CFLAGS += -Wl,-verbose
 
-# CFLAGS += -DUSE_KEYBOARD_TEST
+# CFLAGS += -DUSE_KEYBOARD_TEST=1
 
 # List C source files here.
 C_SRC += \
@@ -86,7 +86,10 @@ LDFLAGS += -T $(LD_SCRIPT_DIR)/$(LD_SCRIPT)
 #                               recipes                               #
 #######################################################################
 
+
 all: hex fuse
+
+hex: Makefile
 
 program-dfu: $(TARGET_HEX)
 	dfu-programmer $(MCU) erase --force
