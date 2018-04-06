@@ -50,40 +50,6 @@ const usb_config_desc_keyboard_t usb_config_desc = {
         .bMaxPower           = USB_MAX_POWER(500),
     },
 
-    // boot keyboard interface descriptor
-    {
-        .bLength            = sizeof(usb_interface_desc_t),
-        .bDescriptorType    = USB_DESC_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_BOOT_KEYBOARD,
-        .bAlternateSetting  = 0,
-        .bNumEndpoints      = 1,
-        .bInterfaceClass    = USB_CLASS_HID,
-        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
-        .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
-        .iInterface         = STRING_DESC_NONE,
-    },
-    // boot keyboard HID descriptor
-    {
-        .bLength             = sizeof(usb_hid_desc_t),
-        .bDescriptorType     = USB_DESC_HID,
-        .bcdHID              = USB_HID_REVISION,
-        .bCountryCode        = HID_COUNTRY_NONE,
-        .bNumDescriptors     = 1,
-        .bDescriptorType_HID = USB_DESC_HID_REPORT,
-        .wDescriptorLength   = sizeof(hid_desc_boot_keyboard),
-    },
-    // boot keyboard in endpoint descriptor
-    {
-        .bLength          = sizeof(usb_endpoint_desc_t),
-        .bDescriptorType  = USB_DESC_ENDPOINT,
-        .bEndpointAddress = (uint8_t)(USB_DIR_IN | EP_NUM_BOOT_KEYBOARD),
-        .bmAttributes     = USB_EP_TYPE_INT,
-        .wMaxPacketSize   = EP_IN_SIZE_BOOT_KEYBOARD,
-        .bInterval        = REPORT_INTERVAL_BOOT_KEYBOARD,
-    },
-
-
-#if 0
     // vendor interface descriptor
     {
         .bLength            = sizeof(usb_interface_desc_t),
@@ -124,9 +90,9 @@ const usb_config_desc_keyboard_t usb_config_desc = {
         .wMaxPacketSize   = EP_SIZE_VENDOR,
         .bInterval        = REPORT_INTERVAL_VENDOR_OUT,
     },
-#endif
 };
 
+#if 0
 // language id in string 0 descriptor
 const uint16_t usb_string_desc_0[2] = {
     USB_STRING_DESC_SIZE(sizeof(usb_string_desc_0)),
@@ -138,3 +104,4 @@ const uint16_t usb_string_desc_1[8] = {
     USB_STRING_DESC_SIZE(sizeof(usb_string_desc_1)),
     'k', 'e', 'y', 'p', 'l', 'u', 's'
 };
+#endif

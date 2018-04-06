@@ -121,70 +121,6 @@ void usb_init(void) {
 
 }
 
-#if defined(USE_KEYBOARD_TEST)
-
-// return 0 if the USB is not configured, or the configuration
-// number selected by the HOST
-uint8_t usb_configured(void) {
-    return usb_configuration;
-}
-
-
-static inline int8_t usb_wait_endpoint(uint8_t ep_num);
-
-int8_t usb_keyboard_send_blocking(void) {
-    if (usb_wait_endpoint(KEYBOARD_ENDPOINT)) {
-        return -1;
-    } else {
-        return usb_keyboard_send();
-    }
-}
-
-// perform a single keystroke
-int8_t usb_keyboard_press(uint8_t key, uint8_t modifier) {
-    int8_t r;
-
-    kb_report.modifiers = modifier;
-    kb_report.keys[0] = key;
-    r = usb_keyboard_send_blocking();
-    if (r) return r;
-    kb_report.modifiers = modifier;
-    kb_report.keys[0] = 0;
-    return usb_keyboard_send_blocking();
-}
-
-static inline int8_t usb_wait_endpoint(uint8_t ep_num) {
-    uint8_t timeout = UDFNUML + 50;
-    while (1) {
-        bool ready = false;
-
-        ready = usb_is_endpoint_ready(ep_num);
-
-        if (ready) {
-            return 0;
-        } else if (!usb_configuration || UDFNUML == timeout) {
-            return -1; // has the USB gone offline or timed out
-        }
-    }
-}
-
-// send the contents of keyboard_keys and keyboard_modifier_keys
-int8_t usb_keyboard_send(void)
-{
-    uint8_t ret_val = -1;
-
-    if (!usb_configuration) {
-        return ret_val;
-    }
-
-    if (usb_is_endpoint_ready(KEYBOARD_ENDPOINT)) {
-        usb_write_endpoint(KEYBOARD_ENDPOINT, (uint8_t*)&kb_report, 8);
-        ret_val = 0;
-    }
-
-    return ret_val;
-}
-
 void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length) {
     uint8_t i;
     UENUM = ep_number;
@@ -194,9 +130,6 @@ void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length) {
     UEINTX = (1<<STALLEDI) | (1<<RXSTPI) | (1<<NAKOUTI) | (1<<RWAL);
 }
 
-#endif
-
-static inline
 void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
     uint8_t i;
 
@@ -355,14 +288,10 @@ void get_descriptor(
         // USB Host requested a HID descriptor
         case USB_DESC_HID_REPORT: {
             switch (req->get_hid_desc.interface) {
-                case INTERFACE_BOOT_KEYBOARD: {
-                    address = (raw_ptr_t)hid_desc_boot_keyboard;
-                    length  = sizeof_hid_desc_boot_keyboard;
+                case INTERFACE_VENDOR: {
+                    address = (raw_ptr_t)hid_desc_vendor;
+                    length  = sizeof_hid_desc_vendor;
                 } break;
-                // case INTERFACE_VENDOR: {
-                //     address = (raw_ptr_t)hid_desc_vendor;
-                //     length  = sizeof_hid_desc_vendor;
-                // } break;
             }
         } break;
 
@@ -434,11 +363,17 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
                 usb_send_in();
                 // cfg = endpoint_config_table;
 
-                UENUM = EP_NUM_BOOT_KEYBOARD;
+                UENUM = EP_NUM_VENDOR_IN;
                 UECONX = (1<<EPEN);
 
                 UECFG0X = EP_TYPE_INTERRUPT_IN;
-                UECFG1X = EP_SIZE(EP_IN_SIZE_BOOT_KEYBOARD) | DEFAULT_BUFFERING;
+                UECFG1X = EP_SIZE(EP_IN_SIZE_VENDOR) | DEFAULT_BUFFERING;
+
+                UENUM = EP_NUM_VENDOR_OUT;
+                UECONX = (1<<EPEN);
+
+                UECFG0X = EP_TYPE_INTERRUPT_OUT;
+                UECFG1X = EP_SIZE(EP_OUT_SIZE_VENDOR) | DEFAULT_BUFFERING;
             }
             UERST = 0x1E;
             UERST = 0;
@@ -650,5 +585,23 @@ void usb_com_isr(void) {
 void usb_poll(void) {
     usb_com_isr();
     usb_gen_isr();
+
+    if (usb_is_endpoint_ready(EP_NUM_VENDOR_OUT)) {
+        uint8_t data[EP_OUT_SIZE_VENDOR];
+        uint8_t length;
+        usb_read_endpoint(
+            EP_NUM_VENDOR_OUT,
+            data,
+            &length
+        );
+
+        if (length) {
+            usb_write_endpoint(
+                EP_NUM_VENDOR_IN,
+                data,
+                length
+            );
+        }
+    }
 }
 

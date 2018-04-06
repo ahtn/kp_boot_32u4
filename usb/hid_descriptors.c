@@ -3,40 +3,6 @@
 
 #pragma once
 
-#include "usb/util/hut_keyboard.h"
-
-// the default keyboard descriptor - compatible with keyboard boot protocol
-// tatken from the HID Descriptor Tool
-const uint8_t hid_desc_boot_keyboard[] = {
-    HID_USAGE_PAGE(1)        , HID_USAGE_PAGE_GENERIC_DESKTOP,
-    HID_USAGE(1)             , HID_USAGE_KEYBOARD,
-    HID_COLLECTION(1)        , HID_COLLECTION_APPLICATION,
-        // modifiers
-        HID_USAGE_PAGE(1)      , HID_USAGE_PAGE_KEYBOARD,
-        HID_USAGE_MINIMUM(1)   , KC_LEFT_CONTROL,
-        HID_USAGE_MAXIMUM(1)   , KC_RIGHT_GUI,
-        HID_LOGICAL_MINIMUM(1) , 0x00,
-        HID_LOGICAL_MAXIMUM(1) , 0x01,
-        HID_REPORT_COUNT(1)    , 0x08,
-        HID_REPORT_SIZE(1)     , 0x01,
-        HID_INPUT(1)           , IOF_DATA | IOF_VARIABLE | IOF_ABSOLUTE,
-        // reserved/OEM
-        HID_REPORT_COUNT(1)    , 0x01,
-        HID_REPORT_SIZE(1)     , 0x08,
-        HID_INPUT(1)           , IOF_CONSTANT | IOF_VARIABLE | IOF_ABSOLUTE,
-        // keycodes
-        HID_LOGICAL_MINIMUM(1) , KC_NONE,
-        HID_LOGICAL_MAXIMUM(1) , KC_RIGHT_GUI,
-        HID_USAGE_MINIMUM(1)   , KC_NONE,
-        HID_USAGE_MAXIMUM(1)   , KC_RIGHT_GUI,
-        HID_REPORT_COUNT(1)    , 0x06,
-        // HID_REPORT_SIZE(1)     , 0x08, // Reuse global item
-        HID_INPUT(1)           , IOF_DATA | IOF_ARRAY | IOF_ABSOLUTE,
-    HID_END_COLLECTION(0),
-};
-const uint8_t sizeof_hid_desc_boot_keyboard = sizeof(hid_desc_boot_keyboard);
-
-#if 0
 #define HID_USAGE_PAGE_VENDOR HID_USAGE_PAGE_VENDOR_START
 #define HID_COLLECTION_VENDOR HID_COLLECTION_VENDOR_START
 #define HID_USAGE_VENDOR_0 0x80+0
@@ -68,4 +34,3 @@ const uint8_t hid_desc_vendor[] = {
 };
 
 const uint8_t sizeof_hid_desc_vendor = sizeof(hid_desc_vendor);
-#endif

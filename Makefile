@@ -49,7 +49,7 @@ AVRDUDE_CMD = avrdude -p $(MCU) -c $(AVRDUDE_PROGRAMMER)
 #######################################################################
 
 CFLAGS += -Wno-error=unused-function
-CFLAGS += -Wl,-verbose
+# CFLAGS += -Wl,-verbose
 
 # CFLAGS += -DUSE_KEYBOARD_TEST=1
 

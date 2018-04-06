@@ -9,26 +9,20 @@
 typedef struct usb_config_desc_keyboard_t {
     usb_config_desc_t conf;
 
-    usb_interface_desc_t intf0;
-    usb_hid_desc_t hid0;
-    usb_endpoint_desc_t ep1in;
-
-    // usb_interface_desc_t intf3;
-    // usb_hid_desc_t hid3;
-    // usb_endpoint_desc_t ep4in;
-    // usb_endpoint_desc_t ep4out;
+    usb_interface_desc_t intf3;
+    usb_hid_desc_t hid3;
+    usb_endpoint_desc_t ep4in;
+    usb_endpoint_desc_t ep4out;
 } usb_config_desc_keyboard_t;
 
 // endpoint and interface numbers
-#define INTERFACE_BOOT_KEYBOARD 0
-#define NUM_INTERFACES (INTERFACE_BOOT_KEYBOARD+1)
-
-#define EP_NUM_BOOT_KEYBOARD    1
+#define INTERFACE_VENDOR 0
+#define NUM_INTERFACES (INTERFACE_VENDOR+1)
 
 // On some ports (atmega32u4), the USB hardware must assign IN and OUT endpoints
 // to separate ENDPOINT numbers.
-#  define EP_NUM_VENDOR_IN        4
-#  define EP_NUM_VENDOR_OUT       5
+#  define EP_NUM_VENDOR_IN        1
+#  define EP_NUM_VENDOR_OUT       2
 
 // endpoint sizes
 #define EP_SIZE_VENDOR 0x40
