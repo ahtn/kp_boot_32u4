@@ -114,8 +114,7 @@ volatile uint8_t keyboard_leds=0;
 
 
 // initialize USB
-void usb_init(void)
-{
+void usb_init(void) {
     HW_CONFIG();
     USB_FREEZE();   // enable USB
     PLL_CONFIG();   // config PLL
@@ -132,14 +131,16 @@ void usb_init(void)
     // enable usb interrupts
     // UDIEN = (1<<EORSTE)|(1<<SOFE);
     UDIEN = 0;
+
 }
 
 // return 0 if the USB is not configured, or the configuration
 // number selected by the HOST
-uint8_t usb_configured(void)
-{
+uint8_t usb_configured(void) {
     return usb_configuration;
 }
+
+#if defined(USE_KEYBOARD_TEST)
 
 static inline int8_t usb_wait_endpoint(uint8_t ep_num);
 
@@ -164,6 +165,23 @@ int8_t usb_keyboard_press(uint8_t key, uint8_t modifier) {
     return usb_keyboard_send_blocking();
 }
 
+static inline int8_t usb_wait_endpoint(uint8_t ep_num) {
+    uint8_t timeout = UDFNUML + 50;
+    while (1) {
+        bool ready = false;
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            ready = usb_is_endpoint_ready(ep_num);
+        }
+        if (ready) {
+            return 0;
+        } else if (!usb_configuration || UDFNUML == timeout) {
+            return -1; // has the USB gone offline or timed out
+        }
+    }
+}
+
+#endif
+
 void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length) {
     uint8_t i;
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
@@ -184,21 +202,6 @@ void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
             dest[i] = UEDATX;
         }
         UEINTX = 0x6B;
-    }
-}
-
-static inline int8_t usb_wait_endpoint(uint8_t ep_num) {
-    uint8_t timeout = UDFNUML + 50;
-    while (1) {
-        bool ready = false;
-        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-            ready = usb_is_endpoint_ready(ep_num);
-        }
-        if (ready) {
-            return 0;
-        } else if (!usb_configuration || UDFNUML == timeout) {
-            return -1; // has the USB gone offline or timed out
-        }
     }
 }
 
@@ -410,9 +413,9 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
 
             do {
                 // wait for host ready for IN packet
-                do {
-                    i = UEINTX;
-                } while (!(i & ((1<<TXINI)|(1<<RXOUTI))));
+                // do {
+                //     i = UEINTX;
+                // } while (!(i & ((1<<TXINI)|(1<<RXOUTI))));
 
                 if (i & (1<<RXOUTI)) {
                     return 1;    // abort
@@ -578,8 +581,8 @@ void usb_gen_isr(void) {
 // other endpoints are manipulated by the user-callable
 // functions, and the start-of-frame interrupt.
 //
-ISR(USB_COM_vect) {
-// void usb_com_isr(void) {
+// ISR(USB_COM_vect) {
+void usb_com_isr(void) {
     usb_request_t req;
 
 
@@ -587,11 +590,20 @@ ISR(USB_COM_vect) {
     //     USB_EP0_STALL();
     // }
 
+    // if ( !(UEINT & (1 << EPINT0)) ) {
+    //     return;
+    // }
+
+
     UENUM = 0;
 
-    if ( (UEINTX & ~((1<<RXSTPI) | (1<<RXOUTI) | (1<<TXINI))) == 0 ) {
+    if ( !(UEINTX & (1<<RXSTPI)) ) {
         return;
     }
+
+    // if ( (UEINTX & ~((1<<RXSTPI) | (1<<RXOUTI) | (1<<TXINI))) == 0 ) {
+    //     return;
+    // }
 
     {
         uint8_t length;
@@ -659,7 +671,7 @@ ISR(USB_COM_vect) {
 }
 
 void usb_poll(void) {
-    // usb_com_isr();
+    usb_com_isr();
     usb_gen_isr();
 }
 

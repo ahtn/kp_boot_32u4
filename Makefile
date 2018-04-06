@@ -48,9 +48,10 @@ AVRDUDE_CMD = avrdude -p $(MCU) -c $(AVRDUDE_PROGRAMMER)
 #                           compiler setup                            #
 #######################################################################
 
-CFLAGS +=
-
 CFLAGS += -Wno-error=unused-function
+CFLAGS += -Wl,-verbose
+
+# CFLAGS += -DUSE_KEYBOARD_TEST
 
 # List C source files here.
 C_SRC += \
@@ -73,6 +74,13 @@ CSTANDARD = -std=gnu99
 
 CDEFS +=
 ADEFS +=
+
+# LD_SCRIPT_DIR = /usr/lib/ldscripts
+LD_SCRIPT_DIR = ./ld_scripts
+
+LD_SCRIPT = avr5.xn
+
+LDFLAGS += -T $(LD_SCRIPT_DIR)/$(LD_SCRIPT)
 
 #######################################################################
 #                               recipes                               #

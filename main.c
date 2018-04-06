@@ -21,18 +21,22 @@ int main(void)
     PORTF |= _BV(7) | _BV(6);
 
     usb_init();
-    sei();
+    cli();
 
-#define COUNTER_LIMIT 1000000UL
+#if defined(USE_KEYBOARD_TEST)
+#define COUNTER_LIMIT 200000UL
     volatile uint32_t counter = 0;
+#endif
 
     while (1) {
         usb_poll();
 
+#if USE_KEYBOARD_TEST
         counter++;
         if (counter > COUNTER_LIMIT) {
             usb_keyboard_press(KEY_B, KEY_SHIFT);
             counter = 0;
         }
+#endif
     }
 }
