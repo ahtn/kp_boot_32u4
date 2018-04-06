@@ -27,7 +27,7 @@ int main(void)
     volatile uint32_t counter = 0;
 
     while (1) {
-        // usb_poll();
+        usb_poll();
 
         counter++;
         if (counter > COUNTER_LIMIT) {

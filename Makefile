@@ -55,7 +55,6 @@ CFLAGS += -Wno-error=unused-function
 # List C source files here.
 C_SRC += \
 	main.c \
-	usb_32u4.c \
 	usb.c
 
 # List Assembler source files here.

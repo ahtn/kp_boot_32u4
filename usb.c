@@ -88,6 +88,7 @@ typedef struct {
 
 hid_report_boot_keyboard_t kb_report = {0};
 
+#if 0
 // protocol setting from the host.  We use exactly the same report
 // either way, so this variable only stores the setting since we
 // are required to be able to report which setting is in use.
@@ -102,6 +103,7 @@ static uint8_t keyboard_idle_count=0;
 
 // 1=num lock, 2=caps lock, 4=scroll lock, 8=compose, 16=kana
 volatile uint8_t keyboard_leds=0;
+#endif
 
 
 /**************************************************************************
@@ -128,7 +130,8 @@ void usb_init(void)
     usb_configuration = 0;
 
     // enable usb interrupts
-    UDIEN = (1<<EORSTE)|(1<<SOFE);
+    // UDIEN = (1<<EORSTE)|(1<<SOFE);
+    UDIEN = 0;
 }
 
 // return 0 if the USB is not configured, or the configuration
@@ -223,66 +226,6 @@ int8_t usb_keyboard_send(void)
  *  Private Functions - not intended for general user consumption....
  *
  **************************************************************************/
-
-
-
-// USB Device Interrupt - handle all device-level events
-// the transmit buffer flushing is triggered by the start of frame
-//
-ISR(USB_GEN_vect) {
-    uint8_t irq_flags;
-    // static uint8_t div4=0;
-
-    irq_flags = UDINT;
-    UDINT = 0;
-
-    // USB SOF interrupt
-    if ((irq_flags & (1<<SOFI)) && usb_configuration) {
-
-        // if (keyboard_idle_config && (++div4 & 3) == 0) {
-        //     UENUM = KEYBOARD_ENDPOINT;
-        //     if (UEINTX & (1<<RWAL)) {
-        //         keyboard_idle_count++;
-        //         if (keyboard_idle_count == keyboard_idle_config) {
-        //             keyboard_idle_count = 0;
-        //             usb_read_endpoint(
-        //                 KEYBOARD_ENDPOINT,
-        //                 (uint8_t*)&kb_report,
-        //                 sizeof(kb_report)
-        //             );
-        //             UEINTX = (1<<STALLEDI) | (1<<RXSTPI) | (1<<NAKOUTI) | (1<<RWAL);
-        //         }
-        //     }
-        // }
-
-    }
-
-    // USB end of reset interrupt
-    if (irq_flags & (1<<EORSTI)) {
-        UENUM = 0;
-        UECONX = 1;
-        UECFG0X = EP_TYPE_CONTROL;
-        UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
-        UEIENX = (1<<RXSTPE);
-        usb_configuration = 0;
-    }
-
-    // USB suspend interrupt
-    // if (irq_flags & (1<<SUSPI)) {
-    // }
-
-    // USB end of resume interrupt
-    // if (irq_flags & (1<<UPRSMI)) {
-    // }
-
-    // USB upstream resume interrupt
-    // if (irq_flags & (1<<EORSMI)) {
-    // }
-
-    // USB wake up interrupt
-    // if (irq_flags & (1<<WAKEUPI)) {
-    // }
-}
 
 
 
@@ -524,7 +467,7 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
 
         case GET_CONFIGURATION: {
             if (req->bmRequestType == 0x80) {
-                usb_wait_in_ready();
+                // usb_wait_in_ready();
                 UEDATX = usb_configuration;
                 usb_send_in();
                 return 1;
@@ -532,11 +475,8 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
         } break;
 
         case GET_STATUS: {
-            uint8_t i;
-
-            usb_wait_in_ready();
-            i = 0;
-            UEDATX = i;
+            // usb_wait_in_ready();
+            UEDATX = 0;
             UEDATX = 0;
             usb_send_in();
             return 1;
@@ -547,23 +487,24 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
 }
 
 void usb_hid_request(usb_request_std_t *req) {
+#if 0
     switch (req->wIndex) {
         case INTERFACE_BOOT_KEYBOARD: {
             if (req->bmRequestType == 0xA1) {
                 if (req->bRequest == HID_GET_REPORT) {
-                    usb_wait_in_ready();
+                    // usb_wait_in_ready();
                     usb_write_endpoint(0, (uint8_t*)&kb_report, sizeof(kb_report));
                     usb_send_in();
                     return;
                 }
                 if (req->bRequest == HID_GET_IDLE) {
-                    usb_wait_in_ready();
+                    // usb_wait_in_ready();
                     UEDATX = keyboard_idle_config;
                     usb_send_in();
                     return;
                 }
                 if (req->bRequest == HID_GET_PROTOCOL) {
-                    usb_wait_in_ready();
+                    // usb_wait_in_ready();
                     UEDATX = keyboard_protocol;
                     usb_send_in();
                     return;
@@ -571,7 +512,7 @@ void usb_hid_request(usb_request_std_t *req) {
             }
             if (req->bmRequestType == 0x21) {
                 if (req->bRequest == HID_SET_REPORT) {
-                    usb_wait_receive_out();
+                    // usb_wait_receive_out();
                     keyboard_leds = UEDATX;
                     usb_ack_out();
                     usb_send_in();
@@ -592,21 +533,53 @@ void usb_hid_request(usb_request_std_t *req) {
         } break;
 
     }
+#endif
 
     USB_EP0_STALL();
 }
 
-void usb_poll(void);
+// USB Device Interrupt - handle all device-level events
+// the transmit buffer flushing is triggered by the start of frame
+void usb_gen_isr(void) {
+    uint8_t irq_flags;
+    // static uint8_t div4=0;
+
+    irq_flags = UDINT;
+    UDINT = 0;
+
+    // USB end of reset interrupt
+    if (irq_flags & (1<<EORSTI)) {
+        UENUM = 0;
+        UECONX = 1;
+        UECFG0X = EP_TYPE_CONTROL;
+        UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
+        UEIENX = (1<<RXSTPE);
+        usb_configuration = 0;
+    }
+
+    // USB suspend interrupt
+    // if (irq_flags & (1<<SUSPI)) {
+    // }
+
+    // USB end of resume interrupt
+    // if (irq_flags & (1<<UPRSMI)) {
+    // }
+
+    // USB upstream resume interrupt
+    // if (irq_flags & (1<<EORSMI)) {
+    // }
+
+    // USB wake up interrupt
+    // if (irq_flags & (1<<WAKEUPI)) {
+    // }
+}
 
 // USB Endpoint Interrupt - endpoint 0 is handled here.  The
 // other endpoints are manipulated by the user-callable
 // functions, and the start-of-frame interrupt.
 //
 ISR(USB_COM_vect) {
-    usb_poll();
-}
-
-void usb_poll(void) {
+// void usb_com_isr(void) {
     usb_request_t req;
 
 
@@ -639,6 +612,7 @@ void usb_poll(void) {
 
                 case USB_REQTYPE_RECIPIENT_INTERFACE: {
                     switch (req.val.bRequest) {
+#if 0
                         case USB_REQ_GET_STATUS: {
                             if (usb_configuration != USB_CONFIGURED) {
                                 USB_EP0_STALL();
@@ -651,6 +625,7 @@ void usb_poll(void) {
                                 usb_write_endpoint(0, response, sizeof(response));
                             }
                         } break;
+#endif
 
                         case USB_REQ_GET_DESCRIPTOR: {
                             usb_handle_ep0((usb_request_std_t*)&req);
@@ -672,9 +647,9 @@ void usb_poll(void) {
             }
         } break;
 
-        case USB_REQTYPE_TYPE_CLASS: {
-            usb_hid_request((usb_request_std_t*)&req);
-        } break;
+        // case USB_REQTYPE_TYPE_CLASS: {
+        //     usb_hid_request((usb_request_std_t*)&req);
+        // } break;
 
         default: {
             // stall on unsupported requests
@@ -682,3 +657,9 @@ void usb_poll(void) {
         } break;
     }
 }
+
+void usb_poll(void) {
+    // usb_com_isr();
+    usb_gen_isr();
+}
+
