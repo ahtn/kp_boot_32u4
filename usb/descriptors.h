@@ -53,29 +53,22 @@ typedef struct usb_config_desc_keyboard_t {
 #define REPORT_INTERVAL_VENDOR_IN 1
 #define REPORT_INTERVAL_VENDOR_OUT 1
 
-// string descriptors
-#define USB_STRING_DESC_COUNT 5
-
 #define STRING_DESC_NONE 0
+// string descriptors
+#if 0
+#define USB_STRING_DESC_COUNT 4
 #define STRING_DESC_MANUFACTURER 1
 #define STRING_DESC_PRODUCT 2
 #define STRING_DESC_SERIAL_NUMBER 3
+#else
+#define USB_STRING_DESC_COUNT 0
+#endif
 
 #define USB_DEVICE_VERSION 0x0000
 
 extern const usb_config_desc_keyboard_t usb_config_desc;
 extern const usb_device_desc_t usb_device_desc;
-extern const uint16_t usb_string_desc_0[2];
-extern const uint16_t usb_string_desc_1[8];
-extern const uint16_t usb_string_desc_2[];
-extern const uint16_t usb_string_desc_3[];
 extern const uint8_t sizeof_hid_desc_boot_keyboard;
 extern const uint8_t hid_desc_boot_keyboard[];
-extern const uint8_t sizeof_hid_desc_media;
-extern const uint8_t hid_desc_media[];
-extern const uint8_t sizeof_hid_desc_mouse;
-extern const uint8_t hid_desc_mouse[];
 extern const uint8_t sizeof_hid_desc_vendor;
 extern const uint8_t hid_desc_vendor[];
-extern const uint8_t sizeof_hid_desc_nkro_keyboard;
-extern const uint8_t hid_desc_nkro_keyboard[];

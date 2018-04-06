@@ -22,13 +22,17 @@ int main(void)
 
     usb_init();
     sei();
-    while (!usb_configured()) /* wait */ ;
 
-    _delay_ms(1000);
+#define COUNTER_LIMIT 1000000UL
+    volatile uint32_t counter = 0;
 
     while (1) {
-        usb_keyboard_press(KEY_B, KEY_SHIFT);
+        // usb_poll();
 
-        _delay_ms(2000);
+        counter++;
+        if (counter > COUNTER_LIMIT) {
+            usb_keyboard_press(KEY_B, KEY_SHIFT);
+            counter = 0;
+        }
     }
 }

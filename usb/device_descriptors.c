@@ -25,9 +25,15 @@ const usb_device_desc_t usb_device_desc = {
     .idVendor           = USB_VID,
     .idProduct          = USB_PID,
     .bcdDevice          = USB_DEVICE_VERSION,
+#if 1
+    .iManufacturer      = 0,
+    .iProduct           = 0,
+    .iSerialNumber      = 0,
+#else
     .iManufacturer      = STRING_DESC_MANUFACTURER,
     .iProduct           = STRING_DESC_PRODUCT,
     .iSerialNumber      = STRING_DESC_SERIAL_NUMBER,
+#endif
     .bNumConfigurations = 1,
 };
 

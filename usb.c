@@ -40,19 +40,6 @@
 
 /**************************************************************************
  *
- *  Configurable Options
- *
- **************************************************************************/
-
-// USB devices are supposed to implment a halt feature, which is
-// rarely (if ever) used.  If you comment this line out, the halt
-// code will be removed, saving 102 bytes of space (gcc 4.3.0).
-// This is not strictly USB compliant, but works with all major
-// operating systems.
-#define SUPPORT_ENDPOINT_HALT
-
-/**************************************************************************
- *
  *  Endpoint Buffer Configuration
  *
  **************************************************************************/
@@ -71,13 +58,10 @@
 
 #define ENDPOINT_COUNT 1
 
-static const uint8_t PROGMEM endpoint_config_table[] = {
+static const uint8_t endpoint_config_table[] = {
     1, EP_NUM_BOOT_KEYBOARD, EP_TYPE_INTERRUPT_IN,  EP_SIZE(EP_IN_SIZE_BOOT_KEYBOARD) | DEFAULT_BUFFERING,
-    // 0, EP_NUM_MOUSE, EP_TYPE_INTERRUPT_IN,  EP_SIZE(EP_IN_SIZE_MOUSE) | DEFAULT_BUFFERING,
-    // 0, EP_NUM_MEDIA, EP_TYPE_INTERRUPT_IN,  EP_SIZE(EP_IN_SIZE_MEDIA) | DEFAULT_BUFFERING,
     // 0, EP_NUM_VENDOR_IN, EP_TYPE_INTERRUPT_IN,  EP_SIZE(EP_SIZE_VENDOR) | DEFAULT_BUFFERING,
     // 0, EP_NUM_VENDOR_OUT, EP_TYPE_INTERRUPT_OUT, EP_SIZE(EP_SIZE_VENDOR) | DEFAULT_BUFFERING,
-    // 0, EP_NUM_NKRO_KEYBOARD, EP_TYPE_INTERRUPT_IN,  EP_SIZE(EP_IN_SIZE_NKRO_KEYBOARD) | DEFAULT_BUFFERING,
     0
 };
 
@@ -329,6 +313,7 @@ static inline void usb_ack_out(void)
 
 #include "usb/util/usb_hid.h"
 
+#if 0
 #define MAX_STRING_LEN 32
 uint16_t string_desc_buf[MAX_STRING_LEN+32+1];
 char string_copy_buf[MAX_STRING_LEN+32];
@@ -377,7 +362,7 @@ static void make_serial_string(void) {
     }
     write_serial_helper('\0'); // (1 byte)
 }
-
+#endif
 
 void get_descriptor(
     usb_request_t* req,
@@ -385,9 +370,6 @@ void get_descriptor(
 ) {
     uint16_t length   = 0;
     raw_ptr_t address = (raw_ptr_t)NULL;
-
-    // by default load the descriptor from flash memory
-    ptr->type = PTR_DATA;
 
     switch (req->get_desc.type) {
         // USB Host requested a device descriptor
@@ -402,6 +384,7 @@ void get_descriptor(
             length  = sizeof(usb_config_desc);
         } break;
 
+#if 0
         // USB Host requested a string descriptor
         case USB_DESC_STRING: {
             switch (req->get_desc.index) {
@@ -419,7 +402,6 @@ void get_descriptor(
                 case STRING_DESC_SERIAL_NUMBER: {
                     make_serial_string();
                     make_string_desc(string_copy_buf);
-                    ptr->type = PTR_DATA;
                     address = (raw_ptr_t)string_desc_buf;
                 } break;
 
@@ -435,15 +417,10 @@ void get_descriptor(
             }
 
             if (address != 0) {
-                if (ptr->type == PTR_FLASH) {
-                    // length = flash_read_byte(
-                    //     (flash_ptr_t)&(((usb_string_desc_t*)address)->bLength)
-                    // );
-                } else if (ptr->type == PTR_DATA) {
-                    length = ((usb_string_desc_t*)address)->bLength;
-                }
+                length = ((usb_string_desc_t*)address)->bLength;
             }
         } break;
+#endif
 
         // USB Host requested a HID descriptor
         case USB_DESC_HID_REPORT: {
@@ -501,16 +478,8 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
                 // send IN packet
                 n = len < ENDPOINT0_SIZE ? len : ENDPOINT0_SIZE;
                 for (i = n; i; i--) {
-                    switch (desc_ptr.type) {
-                        case PTR_FLASH: {
-                            UEDATX = pgm_read_byte(desc_ptr.ptr.flash++);
-                        } break;
-
-                        case PTR_DATA: {
-                            UEDATX = desc_ptr.ptr.data[0];
-                            desc_ptr.ptr.data++;
-                        } break;
-                    }
+                    UEDATX = desc_ptr.ptr.data[0];
+                    desc_ptr.ptr.data++;
                 }
                 len -= n;
                 usb_send_in();
@@ -537,14 +506,14 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
                 for (i=0; i < ENDPOINT_COUNT; i++) {
                     uint8_t en, ep_num;
 
-                    en = pgm_read_byte(cfg++);
-                    ep_num = pgm_read_byte(cfg++);
+                    en = *cfg++;
+                    ep_num = *cfg++;
                     UENUM = ep_num;
 
                     UECONX = en;
                     if (en) {
-                        UECFG0X = pgm_read_byte(cfg++);
-                        UECFG1X = pgm_read_byte(cfg++);
+                        UECFG0X = *cfg++;
+                        UECFG1X = *cfg++;
                     }
                 }
             }
@@ -567,41 +536,12 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
 
             usb_wait_in_ready();
             i = 0;
-#ifdef SUPPORT_ENDPOINT_HALT
-            if (req->bmRequestType == 0x82) {
-                UENUM = req->wIndex;
-                if (UECONX & (1<<STALLRQ)) i = 1;
-                UENUM = 0;
-            }
-#endif
             UEDATX = i;
             UEDATX = 0;
             usb_send_in();
             return 1;
         } break;
 
-#ifdef SUPPORT_ENDPOINT_HALT
-        case CLEAR_FEATURE:
-        case SET_FEATURE: {
-            if (req->bmRequestType == 0x02 && req->wValue == 0) {
-                uint8_t i;
-
-                i = req->wIndex & 0x7F;
-                if (i >= 1 && i <= MAX_ENDPOINT) {
-                    usb_send_in();
-                    UENUM = i;
-                    if (req->bRequest == SET_FEATURE) {
-                        USB_EP0_STALL();
-                    } else {
-                        UECONX = (1<<STALLRQC)|(1<<RSTDT)|(1<<EPEN);
-                        UERST = (1 << i);
-                        UERST = 0;
-                    }
-                    return 1;
-                }
-            }
-        } break;
-#endif
     }
     return 0;
 }
@@ -656,11 +596,17 @@ void usb_hid_request(usb_request_std_t *req) {
     USB_EP0_STALL();
 }
 
+void usb_poll(void);
+
 // USB Endpoint Interrupt - endpoint 0 is handled here.  The
 // other endpoints are manipulated by the user-callable
 // functions, and the start-of-frame interrupt.
 //
 ISR(USB_COM_vect) {
+    usb_poll();
+}
+
+void usb_poll(void) {
     usb_request_t req;
 
 
@@ -669,6 +615,11 @@ ISR(USB_COM_vect) {
     // }
 
     UENUM = 0;
+
+    if ( (UEINTX & ~((1<<RXSTPI) | (1<<RXOUTI) | (1<<TXINI))) == 0 ) {
+        return;
+    }
+
     {
         uint8_t length;
         usb_read_endpoint(0, (uint8_t*)&req, &length);

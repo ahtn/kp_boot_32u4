@@ -4,7 +4,6 @@
 #pragma once
 
 #include "usb/util/hut_keyboard.h"
-#include "usb/util/hut_led.h"
 
 // the default keyboard descriptor - compatible with keyboard boot protocol
 // tatken from the HID Descriptor Tool
@@ -33,19 +32,6 @@ const uint8_t hid_desc_boot_keyboard[] = {
         HID_REPORT_COUNT(1)    , 0x06,
         // HID_REPORT_SIZE(1)     , 0x08, // Reuse global item
         HID_INPUT(1)           , IOF_DATA | IOF_ARRAY | IOF_ABSOLUTE,
-        // LEDs
-        HID_USAGE_PAGE(1)      , HID_USAGE_PAGE_LEDS,
-        HID_LOGICAL_MINIMUM(1) , 0x00,
-        HID_LOGICAL_MAXIMUM(1) , 0x01,
-        HID_USAGE_MINIMUM(1)   , HID_LED_Num_Lock,
-        HID_USAGE_MAXIMUM(1)   , HID_LED_Kana,
-        HID_REPORT_COUNT(1)    , 0x05,
-        HID_REPORT_SIZE(1)     , 0x01,
-        HID_OUTPUT(1)          , IOF_DATA | IOF_VARIABLE | IOF_ABSOLUTE,
-        // leftover
-        HID_REPORT_COUNT(1)    , 0x01,
-        HID_REPORT_SIZE(1)     , 0x03,
-        HID_OUTPUT(1)          , IOF_CONSTANT | IOF_VARIABLE | IOF_ABSOLUTE,
     HID_END_COLLECTION(0),
 };
 const uint8_t sizeof_hid_desc_boot_keyboard = sizeof(hid_desc_boot_keyboard);

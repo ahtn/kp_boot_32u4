@@ -21,7 +21,6 @@ typedef uint16_t flash_ptr_t;
 /// memory regions between functions. In addition to the address, this pointer
 /// includes the size and type of the memory region (ram, flash, eeprom).
 typedef struct fat_ptr_t {
-    uint8_t type;
     uint16_t len;
     union {
         const uint8_t* data;
