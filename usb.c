@@ -227,101 +227,94 @@ static void make_serial_string(void) {
 }
 #endif
 
-void get_descriptor(
-    usb_request_t* req,
-    fat_ptr_t *ptr
-) {
-    uint16_t length   = 0;
-    raw_ptr_t address = (raw_ptr_t)NULL;
-
-    switch (req->get_desc.type) {
-        // USB Host requested a device descriptor
-        case USB_DESC_DEVICE: {
-            address = (raw_ptr_t)&usb_device_desc;
-            length  = sizeof(usb_device_desc);
-        } break;
-
-        // USB Host requested a configuration descriptor
-        case USB_DESC_CONFIGURATION: {
-            address = (raw_ptr_t)&usb_config_desc;
-            length  = sizeof(usb_config_desc);
-        } break;
-
-#if 0
-        // USB Host requested a string descriptor
-        case USB_DESC_STRING: {
-            switch (req->get_desc.index) {
-                // case STRING_DESC_PRODUCT: {
-                //     ptr->type = PTR_DATA;
-                //     flash_read(
-                //         (uint8_t*) string_copy_buf,
-                //         (flash_ptr_t)&(GET_SETTING(device_name)),
-                //         MAX_STRING_LEN
-                //     );
-                //     make_string_desc(string_copy_buf);
-                //     address = (raw_ptr_t)string_desc_buf;
-                // } break;
-
-                case STRING_DESC_SERIAL_NUMBER: {
-                    make_serial_string();
-                    make_string_desc(string_copy_buf);
-                    address = (raw_ptr_t)string_desc_buf;
-                } break;
-
-                case STRING_DESC_MANUFACTURER: {
-                    address = (raw_ptr_t)((uint8_t*)usb_string_desc_1);
-                } break;
-
-                default:
-                case STRING_DESC_NONE: {
-                    address = (raw_ptr_t)((uint8_t*)usb_string_desc_0);
-                } break;
-
-            }
-
-            if (address != 0) {
-                length = ((usb_string_desc_t*)address)->bLength;
-            }
-        } break;
-#endif
-
-        // USB Host requested a HID descriptor
-        case USB_DESC_HID_REPORT: {
-            switch (req->get_hid_desc.interface) {
-                case INTERFACE_VENDOR: {
-                    address = (raw_ptr_t)hid_desc_vendor;
-                    length  = sizeof_hid_desc_vendor;
-                } break;
-            }
-        } break;
-
-    }
-
-    ptr->len = length;
-    ptr->ptr.raw = address;
-}
-
-uint8_t usb_handle_ep0(usb_request_std_t *req) {
-    switch(req->bRequest) {
+uint8_t usb_handle_ep0(usb_request_t *req) {
+    switch(req->std.bRequest) {
         case USB_REQ_GET_DESCRIPTOR: {
             uint8_t len, i, n;
-            fat_ptr_t desc_ptr;
 
-            get_descriptor((usb_request_t*)req, &desc_ptr);
+            // get_descriptor((usb_request_t*)req, &desc_ptr);
+        // void get_descriptor( usb_request_t* req, fat_ptr_t *ptr) {
+            uint16_t length   = 0;
+            uint8_t* address = NULL;
+
+            switch (req->get_desc.type) {
+                // USB Host requested a device descriptor
+                case USB_DESC_DEVICE: {
+                    address = (uint8_t*)&usb_device_desc;
+                    length  = sizeof(usb_device_desc);
+                } break;
+
+                // USB Host requested a configuration descriptor
+                case USB_DESC_CONFIGURATION: {
+                    address = (uint8_t*)&usb_config_desc;
+                    length  = sizeof(usb_config_desc);
+                } break;
+
+#if 0
+                // USB Host requested a string descriptor
+                case USB_DESC_STRING: {
+                    switch (req->get_desc.index) {
+                        // case STRING_DESC_PRODUCT: {
+                        //     ptr->type = PTR_DATA;
+                        //     flash_read(
+                        //         (uint8_t*) string_copy_buf,
+                        //         (flash_ptr_t)&(GET_SETTING(device_name)),
+                        //         MAX_STRING_LEN
+                        //     );
+                        //     make_string_desc(string_copy_buf);
+                        //     address = (raw_ptr_t)string_desc_buf;
+                        // } break;
+
+                        case STRING_DESC_SERIAL_NUMBER: {
+                            make_serial_string();
+                            make_string_desc(string_copy_buf);
+                            address = (raw_ptr_t)string_desc_buf;
+                        } break;
+
+                        case STRING_DESC_MANUFACTURER: {
+                            address = (raw_ptr_t)((uint8_t*)usb_string_desc_1);
+                        } break;
+
+                        default:
+                        case STRING_DESC_NONE: {
+                            address = (raw_ptr_t)((uint8_t*)usb_string_desc_0);
+                        } break;
+
+                    }
+
+                    if (address != 0) {
+                        length = ((usb_string_desc_t*)address)->bLength;
+                    }
+                } break;
+#endif
+
+                // USB Host requested a HID descriptor
+                case USB_DESC_HID_REPORT: {
+                    switch (req->get_hid_desc.interface) {
+                        case INTERFACE_VENDOR: {
+                            address = (uint8_t*)hid_desc_vendor;
+                            length  = sizeof_hid_desc_vendor;
+                        } break;
+                    }
+                } break;
+
+            }
+        // }
+
 
             // desc_ptr.type = PTR_FLASH;
             // desc_ptr.len = sizeof(usb_device_desc);
             // desc_ptr.ptr.raw = (raw_ptr_t)&usb_device_desc;
 
-            if (desc_ptr.ptr.raw == 0) {
+            if (address == NULL) {
                 USB_EP0_STALL();
                 return 1;
             }
 
-            len = (req->wLength < 256) ? req->wLength : 255;
+            len = (req->std.wLength < 256) ? req->std.wLength : 255;
 
-            if (len > desc_ptr.len) {
-                len = desc_ptr.len;
+            if (len > length) {
+                len = length;
             }
 
             do {
@@ -337,8 +330,8 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
                 // send IN packet
                 n = len < ENDPOINT0_SIZE ? len : ENDPOINT0_SIZE;
                 for (i = n; i; i--) {
-                    UEDATX = desc_ptr.ptr.data[0];
-                    desc_ptr.ptr.data++;
+                    UEDATX = address[0];
+                    address++;
                 }
                 len -= n;
                 usb_send_in();
@@ -347,19 +340,19 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
             return 1;
         } break;
 
-        case SET_ADDRESS: {
+        case USB_REQ_SET_ADDRESS: {
             usb_send_in();
             usb_wait_in_ready();
-            UDADDR = req->wValue | (1<<ADDEN);
+            UDADDR = req->std.wValue | (1<<ADDEN);
             return 1;
         } break;
 
-        case SET_CONFIGURATION: {
+        case USB_REQ_SET_CONFIGURATION: {
             // const uint8_t *cfg;
             // uint8_t i;
 
-            if (req->bmRequestType == 0) {
-                usb_configuration = req->wValue;
+            if (req->std.bmRequestType == 0) {
+                usb_configuration = req->std.wValue;
                 usb_send_in();
                 // cfg = endpoint_config_table;
 
@@ -380,8 +373,8 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
             return 1;
         } break;
 
-        case GET_CONFIGURATION: {
-            if (req->bmRequestType == 0x80) {
+        case USB_REQ_GET_CONFIGURATION: {
+            if (req->std.bmRequestType == 0x80) {
                 // usb_wait_in_ready();
                 UEDATX = usb_configuration;
                 usb_send_in();
@@ -389,7 +382,7 @@ uint8_t usb_handle_ep0(usb_request_std_t *req) {
             }
         } break;
 
-        case GET_STATUS: {
+        case USB_REQ_GET_STATUS: {
             // usb_wait_in_ready();
             UEDATX = 0;
             UEDATX = 0;
@@ -531,7 +524,7 @@ void usb_com_isr(void) {
             switch (recipient) {
                 case USB_REQTYPE_RECIPIENT_DEVICE: {
                     // usb_handle_device_request();
-                    usb_handle_ep0((usb_request_std_t*)&req);
+                    usb_handle_ep0(&req);
                 } break;
 
                 case USB_REQTYPE_RECIPIENT_INTERFACE: {
@@ -552,7 +545,7 @@ void usb_com_isr(void) {
 #endif
 
                         case USB_REQ_GET_DESCRIPTOR: {
-                            usb_handle_ep0((usb_request_std_t*)&req);
+                            usb_handle_ep0(&req);
                         } break;
 
                         default: {
@@ -596,6 +589,9 @@ void usb_poll(void) {
         );
 
         if (length) {
+            for (int i = 0; i < length; ++i) {
+                data[i]++;
+            }
             usb_write_endpoint(
                 EP_NUM_VENDOR_IN,
                 data,
