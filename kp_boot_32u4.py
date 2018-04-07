@@ -76,9 +76,9 @@ class BootloaderDevice(object):
 
         # The spm command will be repeated with the data from this section.
         # The bootloader will start at addr=6 (start of data section)
-        if length:
-            length += 6
+
         cmd_read_end_address = length or len(data)
+        cmd_read_end_address += 6
 
         packet = bytearray()
         packet += struct.pack(
@@ -157,8 +157,8 @@ if __name__ == "__main__":
     dev = find_devices()[0]
 
     dev.open()
-    # dev.write(list(range(0,32)))
-    dev.write_page(0x7000, list(range(128)))
-    dev.write_page(0x7080, list(range(128)))
-    dev.write_page(0x6F80, list(range(128)))
+    # for i in range(32):
+    #     dev.write_page(0x1000 + i*128, [i]*128)
+    for i in range(32):
+        dev.write_page(0x1000 + i*128, list(range(128)))
     dev.close()

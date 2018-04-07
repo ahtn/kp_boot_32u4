@@ -575,7 +575,6 @@ void usb_poll(void) {
             // data[5]: repeat count
             // data[6:7]: r0:r1 spm data
             case USB_CMD_SPM: {
-#if 1
                 // const uint16_t address = *((uint16_t*)data+1);
                 const uint16_t address = (data[2]<<8) | data[1];
                 const uint8_t spm_action = data[3];
@@ -591,75 +590,8 @@ void usb_poll(void) {
                         spm_data
                     );
                 }
-#else
-                spm_leap_cmd(
-                    0x7000-128,
-                    (1<<SPMEN),
-                    0xCDAB
-                );
-
-                // erase the page
-                spm_leap_cmd(
-                    0x7000-128,
-                    (1<<SPMEN) | (1<<PGERS),
-                    0
-                );
-
-                // write the page
-                spm_leap_cmd(
-                    0x7000-128,
-                    (1<<SPMEN) | (1<<PGWRT),
-                    0
-                );
-#endif
             } break;
         }
-#endif
-
-        //data[0] = 0x03;
-        //data[1] = 0x03;
-        //// Format:
-        ////
-        //// data[1:2]: spm Z address
-        //// data[3]: spm action
-        //// data[4]: repeat count
-        //// data[5]: reserved/padding
-        //// data[6:7]: r0:r1 spm data
-        //const uint16_t address = *((uint16_t*)&data[1]);
-        //const uint8_t spm_action = data[3];
-        //const uint8_t size = data[4];
-        //for (uint8_t i = 6; i < size; i+=2) {
-        //    const uint16_t spm_data = *((uint16_t*)&data[i]);
-        //    spm_leap_cmd(
-        //        address,
-        //        spm_action,
-        //        spm_data
-        //    );
-        //}
-        //
-
-#if 0
-        // write to temporary page buffer
-        spm_leap_cmd(
-            0x7800,
-            (1<<SPMEN),
-            0xCDAB
-        );
-
-        // erase the page
-        spm_leap_cmd(
-            0x7800,
-            (1<<SPMEN) | (1<<PGERS),
-            0
-        );
-
-        // write the page
-        spm_leap_cmd(
-            0x7800,
-            (1<<SPMEN) | (1<<PGWRT),
-            0
-        );
-#endif
 
         usb_write_endpoint(
             EP_NUM_VENDOR_IN,
