@@ -12,8 +12,9 @@
 
 #define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
 
-int main(void)
-{
+void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue);
+
+int main(void) {
     // set for 16 MHz clock
     CPU_PRESCALE(0);
 
@@ -22,8 +23,9 @@ int main(void)
     PORTF |= _BV(7) | _BV(6);
 #endif
 
-    usb_init();
     cli();
+
+    usb_init();
 
     while (1) {
         usb_poll();

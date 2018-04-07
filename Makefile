@@ -61,7 +61,7 @@ C_SRC += \
 # List Assembler source files here.
 # NOTE: Use *.S for user written asm files. *.s is used for compiler generated
 ASM_SRC = \
-	# main.S \
+	spm.S \
 
 # Optimization level, can be [0, 1, 2, 3, s].
 OPT = s
@@ -81,6 +81,9 @@ LD_SCRIPT_DIR = ./ld_scripts
 LD_SCRIPT = avr5.xn
 
 LDFLAGS += -T $(LD_SCRIPT_DIR)/$(LD_SCRIPT)
+
+# LDFLAGS += -Wl,--section-start=.boot_extra=0x2000
+LDFLAGS += -Wl,--section-start=.boot_extra=0x7F80
 
 #######################################################################
 #                               recipes                               #

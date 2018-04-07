@@ -141,14 +141,6 @@ void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
     UEINTX = 0x6B;
 }
 
-/**************************************************************************
- *
- *  Private Functions - not intended for general user consumption....
- *
- **************************************************************************/
-
-
-
 // Misc functions to wait for ready and send/receive packets
 static inline void usb_wait_in_ready(void)
 {
@@ -230,10 +222,6 @@ static void make_serial_string(void) {
 uint8_t usb_handle_ep0(usb_request_t *req) {
     switch(req->std.bRequest) {
         case USB_REQ_GET_DESCRIPTOR: {
-            uint8_t len, i, n;
-
-            // get_descriptor((usb_request_t*)req, &desc_ptr);
-        // void get_descriptor( usb_request_t* req, fat_ptr_t *ptr) {
             uint16_t length   = 0;
             uint8_t* address = NULL;
 
@@ -299,43 +287,26 @@ uint8_t usb_handle_ep0(usb_request_t *req) {
                 } break;
 
             }
-        // }
-
-
-            // desc_ptr.type = PTR_FLASH;
-            // desc_ptr.len = sizeof(usb_device_desc);
-            // desc_ptr.ptr.raw = (raw_ptr_t)&usb_device_desc;
 
             if (address == NULL) {
                 USB_EP0_STALL();
                 return 1;
             }
 
-            len = (req->std.wLength < 256) ? req->std.wLength : 255;
+            // All our USB descriptors fit in one packet, so don't need to
+            // worry about packetizing them.
+            {
+                uint8_t len = (req->std.wLength < 256) ? req->std.wLength : 255;
 
-            if (len > length) {
-                len = length;
-            }
-
-            do {
-                // wait for host ready for IN packet
-                // do {
-                //     i = UEINTX;
-                // } while (!(i & ((1<<TXINI)|(1<<RXOUTI))));
-
-                if (i & (1<<RXOUTI)) {
-                    return 1;    // abort
+                if (len > length) {
+                    len = length;
                 }
 
-                // send IN packet
-                n = len < ENDPOINT0_SIZE ? len : ENDPOINT0_SIZE;
-                for (i = n; i; i--) {
-                    UEDATX = address[0];
-                    address++;
+                for (uint8_t i = len; i; i--) {
+                    UEDATX = *address++;
                 }
-                len -= n;
                 usb_send_in();
-            } while (len || n == ENDPOINT0_SIZE);
+            }
 
             return 1;
         } break;
@@ -491,24 +462,11 @@ void usb_com_isr(void) {
     usb_request_t req;
 
 
-    // if (!is_setup_packet(UEINTX)) {
-    //     USB_EP0_STALL();
-    // }
-
-    // if ( !(UEINT & (1 << EPINT0)) ) {
-    //     return;
-    // }
-
-
     UENUM = 0;
 
-    if ( !(UEINTX & (1<<RXSTPI)) ) {
+    if ( !(is_setup_packet(UEINTX) ) ) {
         return;
     }
-
-    // if ( (UEINTX & ~((1<<RXSTPI) | (1<<RXOUTI) | (1<<TXINI))) == 0 ) {
-    //     return;
-    // }
 
     {
         uint8_t length;
@@ -575,6 +533,14 @@ void usb_com_isr(void) {
     }
 }
 
+enum {
+    USB_CMD_INFO = 0,
+    USB_CMD_ERASE = 1,
+    USB_CMD_SPM = 2,
+};
+
+void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue);
+
 void usb_poll(void) {
     usb_com_isr();
     usb_gen_isr();
@@ -588,16 +554,107 @@ void usb_poll(void) {
             &length
         );
 
-        if (length) {
-            for (int i = 0; i < length; ++i) {
-                data[i]++;
-            }
-            usb_write_endpoint(
-                EP_NUM_VENDOR_IN,
-                data,
-                length
+        uint8_t cmd = data[0];
+        switch(cmd) {
+            case USB_CMD_INFO: {
+            } break;
+
+            case USB_CMD_ERASE: {
+            } break;
+
+            case USB_CMD_SPM: {
+            } break;
+        }
+
+        for (int i = 0; i < EP_OUT_SIZE_VENDOR; ++i) {
+            data[i]++;
+        }
+        usb_write_endpoint(
+            EP_NUM_VENDOR_IN,
+            data,
+            EP_OUT_SIZE_VENDOR
+        );
+
+        // asm voltaile(
+        //     )
+        if (1) {
+            // write to temporary page buffer
+            spm_leap_cmd(
+                0x7800,
+                (1<<SPMEN),
+                0xCDAB
+            );
+
+            // erase the page
+            spm_leap_cmd(
+                0x7800,
+                (1<<SPMEN) | (1<<PGERS),
+                0
+            );
+
+            // write the page
+            spm_leap_cmd(
+                0x7800,
+                (1<<SPMEN) | (1<<PGWRT),
+                0
             );
         }
     }
 }
 
+void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue) {
+    // Assume that the instruction before SPM is `OUT SPMCSR, rXX`
+    // Or it is using STS SPMCSR, rXX.  Need to extract the rXX from
+    // the instruction.  It's in the same place for both opcodes:
+    //1001 001d dddd 0000
+
+#if 1
+    uint8_t tmp=0;
+
+    asm volatile(
+        "push r20\n"
+        "push r0\n"
+        "push r1\n"             // needed for opt command.
+        "push %[tmp]\n"
+        "push r30\n"
+        "push r31\n"
+
+        ////wait for spm operation complete.
+        "SpmLeapCmdWaitSpm: in %[tmp], %[SPM_CSR]\n" //
+        "sbrc %[tmp],0\n"
+        "rjmp SpmLeapCmdWaitSpm\n"
+
+        // For the `call_spm_fn` function, the following registers are used
+        // * Z[r30:r31]: word address which the command will operate on
+        // * [r0:r1]: optional value used by the command
+        // * r20: command value loaded into the SPMCSR register
+        "movw r0, %[optValue] \n" // set the value to be written
+        "mov r20, %[spmCmd]\n"    // SPMCSR value
+
+        "mov r30, %A[addr]\n"      // (2c)
+        "mov r31, %B[addr]\n"      // restore the spm target address into Z. // (2c)
+
+        //"call call_spm\n"
+        // "call (0x7F80 / 2)\n"
+        "call call_spm\n"
+
+        // Return from the bootloader, pop values from stack and return
+        "pop r31\n"
+        "pop r30\n"
+        "pop %[tmp]\n"
+        "pop r1\n"
+        "pop r0\n"
+        "pop r20\n"
+            // output registers
+            : "=d" (tmp),                                   // %0
+              "=r" (addr)                                   // %1
+            // input registers
+            : [spmCmd] "r" (spmCmd),                        // %2
+              [optValue] "r" (optValue),                    // %3
+              [addr] "0" (addr),                            // %4
+              [SPM_CSR] "I" (_SFR_IO_ADDR(SPMCSR)),         // %5
+              [tmp] "d" (tmp)                               // %6
+    );
+#endif
+
+}
