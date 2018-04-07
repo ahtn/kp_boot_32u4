@@ -26,6 +26,7 @@
 #include <stdbool.h>
 
 #include <util/delay.h>
+#include <avr/eeprom.h>
 
 #include "usb.h"
 
@@ -59,8 +60,10 @@
  *
  **************************************************************************/
 
+#ifdef USE_USB_CONFIGURATION
 // zero when we are not configured, non-zero when enumerated
 static volatile uint8_t usb_configuration;
+#endif
 
 // which modifier keys are currently pressed
 // 1=left ctrl,    2=left shift,   4=left alt,    8=left gui
@@ -113,7 +116,9 @@ void usb_init(void) {
     _delay_ms(10);
     UDCON = 0;      // enable attach resistor
 
+#ifdef USE_USB_CONFIGURATION
     usb_configuration = 0;
+#endif
 
     // enable usb interrupts
     // UDIEN = (1<<EORSTE)|(1<<SOFE);
@@ -241,7 +246,7 @@ uint8_t usb_handle_ep0(usb_request_t *req) {
                     length  = sizeof(usb_config_desc);
                 } break;
 
-#if 0
+#if 0//#if
                 // USB Host requested a string descriptor
                 case USB_DESC_STRING: {
                     switch (req->get_desc.index) {
@@ -277,7 +282,7 @@ uint8_t usb_handle_ep0(usb_request_t *req) {
                         length = ((usb_string_desc_t*)address)->bLength;
                     }
                 } break;
-#endif
+#endif//#endif
 
                 // USB Host requested a HID descriptor
                 case USB_DESC_HID_REPORT: {
@@ -325,44 +330,31 @@ uint8_t usb_handle_ep0(usb_request_t *req) {
             // const uint8_t *cfg;
             // uint8_t i;
 
-            if (req->std.bmRequestType == 0) {
-                usb_configuration = req->std.wValue;
-                usb_send_in();
-                // cfg = endpoint_config_table;
-
-                UENUM = EP_NUM_VENDOR_IN;
-                UECONX = (1<<EPEN);
-
-                UECFG0X = EP_TYPE_INTERRUPT_IN;
-                UECFG1X = EP_SIZE(EP_IN_SIZE_VENDOR) | DEFAULT_BUFFERING;
-
-                UENUM = EP_NUM_VENDOR_OUT;
-                UECONX = (1<<EPEN);
-
-                UECFG0X = EP_TYPE_INTERRUPT_OUT;
-                UECFG1X = EP_SIZE(EP_OUT_SIZE_VENDOR) | DEFAULT_BUFFERING;
-            }
-            UERST = 0x1E;
-            UERST = 0;
-            return 1;
-        } break;
-
-        case USB_REQ_GET_CONFIGURATION: {
-            if (req->std.bmRequestType == 0x80) {
-                // usb_wait_in_ready();
-                UEDATX = usb_configuration;
-                usb_send_in();
-                return 1;
-            }
-        } break;
-
-        case USB_REQ_GET_STATUS: {
-            // usb_wait_in_ready();
-            UEDATX = 0;
-            UEDATX = 0;
+#ifdef USE_USB_CONFIGURATION
+            usb_configuration = req->std.wValue;
+#endif
             usb_send_in();
+            // cfg = endpoint_config_table;
+
             return 1;
         } break;
+
+        // case USB_REQ_GET_CONFIGURATION: {
+        //     if (req->std.bmRequestType == 0x80) {
+        //         // usb_wait_in_ready();
+        //         UEDATX = usb_configuration;
+        //         usb_send_in();
+        //         return 1;
+        //     }
+        // } break;
+
+        // case USB_REQ_GET_STATUS: {
+        //     // usb_wait_in_ready();
+        //     UEDATX = 0;
+        //     UEDATX = 0;
+        //     usb_send_in();
+        //     return 1;
+        // } break;
 
     }
     return 0;
@@ -436,7 +428,23 @@ void usb_gen_isr(void) {
         UECFG0X = EP_TYPE_CONTROL;
         UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
         UEIENX = (1<<RXSTPE);
+#if USE_USB_CONFIGURATION
         usb_configuration = 0;
+#endif
+        UENUM = EP_NUM_VENDOR_IN;
+        UECONX = (1<<EPEN);
+
+        UECFG0X = EP_TYPE_INTERRUPT_IN;
+        UECFG1X = EP_SIZE(EP_IN_SIZE_VENDOR) | DEFAULT_BUFFERING;
+
+        UENUM = EP_NUM_VENDOR_OUT;
+        UECONX = (1<<EPEN);
+
+        UECFG0X = EP_TYPE_INTERRUPT_OUT;
+        UECFG1X = EP_SIZE(EP_OUT_SIZE_VENDOR) | DEFAULT_BUFFERING;
+
+        UERST = 0x1E;
+        UERST = 0;
     }
 
     // USB suspend interrupt
@@ -541,6 +549,8 @@ enum {
     USB_CMD_INFO = 1,
     USB_CMD_ERASE = 2,
     USB_CMD_SPM = 3,
+    USB_CMD_WRITE_EEPROM = 4,
+    USB_CMD_RESET = 5,
 };
 
 void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue);
@@ -558,8 +568,9 @@ void usb_poll(void) {
             &length
         );
 
-#if 1
         uint8_t cmd = data[0];
+        // uint16_t address = *((uint16_t*)(data+1));
+        uint16_t address = (data[2]<<8) | data[1];
         switch(cmd) {
             case USB_CMD_INFO: {
             } break;
@@ -569,20 +580,19 @@ void usb_poll(void) {
 
             // Format:
             //
+            // data[0]: USB_CMD_SPM
             // data[1:2]: spm Z address
             // data[3]: spm action
             // data[4]: spm action 2
             // data[5]: repeat count
             // data[6:7]: r0:r1 spm data
             case USB_CMD_SPM: {
-                // const uint16_t address = *((uint16_t*)data+1);
-                const uint16_t address = (data[2]<<8) | data[1];
                 const uint8_t spm_action = data[3];
                 const uint8_t spm_action2 = data[4];
-                const uint8_t size = data[5];
+                uint8_t size = data[5];
                 for (uint8_t i = 6; i < size; i+=2) {
-                    const uint16_t spm_data = *((uint16_t*)&data[i]);
-                    // const uint16_t spm_data = (data[i+1 + 6]<<8) | data[i + 6];
+                    // const uint16_t spm_data = *((uint16_t*)&data[i]);
+                    const uint16_t spm_data = (data[i+1 + 6]<<8) | data[i + 6];
                     spm_leap_cmd(
                         address+i - 6,
                         spm_action,
@@ -591,6 +601,22 @@ void usb_poll(void) {
                     );
                 }
             } break;
+
+            // data[0]: USB_CMD_WRITE_EEPROM
+            // data[1:2]: eeprom write start address
+            // data[3]: number of bytes to write
+            // data[4:...]: the data to be written
+            case USB_CMD_WRITE_EEPROM: {
+                uint8_t size = data[5];
+                for (uint8_t i = 6; i < size; ++i) {
+                    eeprom_write_byte((uint8_t*)address, data[i]);
+                    address++;
+                }
+            } break;
+
+            case USB_CMD_RESET: {
+                while(1); // wait for wdt to timeout to cause a reset
+            }
         }
 
         usb_write_endpoint(

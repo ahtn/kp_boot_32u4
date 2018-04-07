@@ -33,6 +33,8 @@ USB_CMD_VERSION = 0
 USB_CMD_INFO = 1
 USB_CMD_ERASE = 2
 USB_CMD_SPM = 3
+USB_CMD_WRITE_EEPROM = 4
+USB_CMD_RESET = 5
 
 def find_devices(vid=USB_VID, pid=USB_PID):
     hid_devices = easyhid.Enumeration().find(vid=vid, pid=pid)
@@ -42,14 +44,22 @@ class BootloaderDevice(object):
     def __init__(self, hid_dev):
         self.hid_dev = hid_dev
         self.page_size = PAGE_SIZE
+        self._mcu_has_been_reset = False
 
     def open(self):
         self.hid_dev.open()
 
     def close(self):
+        if self._mcu_has_been_reset:
+            return
         self.hid_dev.close()
 
     def write(self, data):
+        data = bytearray(data)
+        assert(len(data) <= EP_SIZE_VENDOR)
+        # pad the packet to match EP_SIZE_VENDOR, required for raw HID
+        data += bytearray( [0xff] * (EP_SIZE_VENDOR - len(data)) )
+
         print("Writing to device -> ")
         hexdump(bytes(data))
         self.hid_dev.write(data)
@@ -72,7 +82,7 @@ class BootloaderDevice(object):
         if data == None:
             data = []
         assert(len(data) <= SPM_PAYLOAD_SIZE)
-        data += [0xff] * (SPM_PAYLOAD_SIZE - len(data))
+        # data += [0xff] * (SPM_PAYLOAD_SIZE - len(data))
 
         # The spm command will be repeated with the data from this section.
         # The bootloader will start at addr=6 (start of data section)
@@ -152,13 +162,18 @@ class BootloaderDevice(object):
         self.write(self._write_packet(address))
         self.read()
 
+    def reset_mcu(self):
+        self.write([USB_CMD_RESET])
+        self._mcu_has_been_reset = True
+
 
 if __name__ == "__main__":
     dev = find_devices()[0]
 
     dev.open()
-    # for i in range(32):
-    #     dev.write_page(0x1000 + i*128, [i]*128)
     for i in range(32):
-        dev.write_page(0x1000 + i*128, list(range(128)))
+        dev.write_page(0x1000 + i*128, [i]*128)
+    # for i in range(32):
+    #     dev.write_page(0x1000 + i*128, list(range(128)))
+    # dev.reset_mcu()
     dev.close()
