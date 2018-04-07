@@ -121,10 +121,13 @@ void usb_init(void) {
 
 }
 
-void usb_write_endpoint(uint8_t ep_number, const uint8_t *src, uint8_t length) {
+
+// NOTE: All writes to the HID endpoint must match the size used in the HID
+// endpoint descriptor.
+void usb_write_endpoint(uint8_t ep_number, const uint8_t *src) {
     uint8_t i;
     UENUM = ep_number;
-    for (i = 0; i < length; ++i) {
+    for (i = 0; i < EP_SIZE_VENDOR; ++i) {
         UEDATX = src[i];
     }
     UEINTX = (1<<STALLEDI) | (1<<RXSTPI) | (1<<NAKOUTI) | (1<<RWAL);
@@ -534,12 +537,13 @@ void usb_com_isr(void) {
 }
 
 enum {
-    USB_CMD_INFO = 0,
-    USB_CMD_ERASE = 1,
-    USB_CMD_SPM = 2,
+    USB_CMD_VERSION = 0,
+    USB_CMD_INFO = 1,
+    USB_CMD_ERASE = 2,
+    USB_CMD_SPM = 3,
 };
 
-void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue);
+void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue);
 
 void usb_poll(void) {
     usb_com_isr();
@@ -554,6 +558,7 @@ void usb_poll(void) {
             &length
         );
 
+#if 1
         uint8_t cmd = data[0];
         switch(cmd) {
             case USB_CMD_INFO: {
@@ -562,47 +567,109 @@ void usb_poll(void) {
             case USB_CMD_ERASE: {
             } break;
 
+            // Format:
+            //
+            // data[1:2]: spm Z address
+            // data[3]: spm action
+            // data[4]: spm action 2
+            // data[5]: repeat count
+            // data[6:7]: r0:r1 spm data
             case USB_CMD_SPM: {
+#if 1
+                // const uint16_t address = *((uint16_t*)data+1);
+                const uint16_t address = (data[2]<<8) | data[1];
+                const uint8_t spm_action = data[3];
+                const uint8_t spm_action2 = data[4];
+                const uint8_t size = data[5];
+                for (uint8_t i = 6; i < size; i+=2) {
+                    const uint16_t spm_data = *((uint16_t*)&data[i]);
+                    // const uint16_t spm_data = (data[i+1 + 6]<<8) | data[i + 6];
+                    spm_leap_cmd(
+                        address+i - 6,
+                        spm_action,
+                        spm_action2,
+                        spm_data
+                    );
+                }
+#else
+                spm_leap_cmd(
+                    0x7000-128,
+                    (1<<SPMEN),
+                    0xCDAB
+                );
+
+                // erase the page
+                spm_leap_cmd(
+                    0x7000-128,
+                    (1<<SPMEN) | (1<<PGERS),
+                    0
+                );
+
+                // write the page
+                spm_leap_cmd(
+                    0x7000-128,
+                    (1<<SPMEN) | (1<<PGWRT),
+                    0
+                );
+#endif
             } break;
         }
+#endif
 
-        for (int i = 0; i < EP_OUT_SIZE_VENDOR; ++i) {
-            data[i]++;
-        }
-        usb_write_endpoint(
-            EP_NUM_VENDOR_IN,
-            data,
-            EP_OUT_SIZE_VENDOR
+        //data[0] = 0x03;
+        //data[1] = 0x03;
+        //// Format:
+        ////
+        //// data[1:2]: spm Z address
+        //// data[3]: spm action
+        //// data[4]: repeat count
+        //// data[5]: reserved/padding
+        //// data[6:7]: r0:r1 spm data
+        //const uint16_t address = *((uint16_t*)&data[1]);
+        //const uint8_t spm_action = data[3];
+        //const uint8_t size = data[4];
+        //for (uint8_t i = 6; i < size; i+=2) {
+        //    const uint16_t spm_data = *((uint16_t*)&data[i]);
+        //    spm_leap_cmd(
+        //        address,
+        //        spm_action,
+        //        spm_data
+        //    );
+        //}
+        //
+
+#if 0
+        // write to temporary page buffer
+        spm_leap_cmd(
+            0x7800,
+            (1<<SPMEN),
+            0xCDAB
         );
 
-        // asm voltaile(
-        //     )
-        if (1) {
-            // write to temporary page buffer
-            spm_leap_cmd(
-                0x7800,
-                (1<<SPMEN),
-                0xCDAB
-            );
+        // erase the page
+        spm_leap_cmd(
+            0x7800,
+            (1<<SPMEN) | (1<<PGERS),
+            0
+        );
 
-            // erase the page
-            spm_leap_cmd(
-                0x7800,
-                (1<<SPMEN) | (1<<PGERS),
-                0
-            );
+        // write the page
+        spm_leap_cmd(
+            0x7800,
+            (1<<SPMEN) | (1<<PGWRT),
+            0
+        );
+#endif
 
-            // write the page
-            spm_leap_cmd(
-                0x7800,
-                (1<<SPMEN) | (1<<PGWRT),
-                0
-            );
-        }
+        usb_write_endpoint(
+            EP_NUM_VENDOR_IN,
+            data
+        );
+
     }
 }
 
-void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue) {
+void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue) {
     // Assume that the instruction before SPM is `OUT SPMCSR, rXX`
     // Or it is using STS SPMCSR, rXX.  Need to extract the rXX from
     // the instruction.  It's in the same place for both opcodes:
@@ -612,30 +679,27 @@ void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue) {
     uint8_t tmp=0;
 
     asm volatile(
-        "push r20\n"
+        // "push r10\n"
+        // "push r20\n"
         "push r0\n"
         "push r1\n"             // needed for opt command.
         "push %[tmp]\n"
         "push r30\n"
         "push r31\n"
 
-        ////wait for spm operation complete.
-        "SpmLeapCmdWaitSpm: in %[tmp], %[SPM_CSR]\n" //
-        "sbrc %[tmp],0\n"
-        "rjmp SpmLeapCmdWaitSpm\n"
+        // NOTE: bootloader always waits after executing the SPM instruction,
+        // so don't need to check it here.
 
         // For the `call_spm_fn` function, the following registers are used
         // * Z[r30:r31]: word address which the command will operate on
         // * [r0:r1]: optional value used by the command
         // * r20: command value loaded into the SPMCSR register
         "movw r0, %[optValue] \n" // set the value to be written
-        "mov r20, %[spmCmd]\n"    // SPMCSR value
+        "mov r10, %[spmCmd]\n"    // SPMCSR value
+        "mov r11, %[spmCmd2]\n"    // SPMCSR value
+        "mov r30, %A[addr]\n"
+        "mov r31, %B[addr]\n"
 
-        "mov r30, %A[addr]\n"      // (2c)
-        "mov r31, %B[addr]\n"      // restore the spm target address into Z. // (2c)
-
-        //"call call_spm\n"
-        // "call (0x7F80 / 2)\n"
         "call call_spm\n"
 
         // Return from the bootloader, pop values from stack and return
@@ -644,16 +708,18 @@ void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue) {
         "pop %[tmp]\n"
         "pop r1\n"
         "pop r0\n"
-        "pop r20\n"
+        // "pop r20\n"
+        // "pop r10\n"
             // output registers
             : "=d" (tmp),                                   // %0
               "=r" (addr)                                   // %1
             // input registers
             : [spmCmd] "r" (spmCmd),                        // %2
-              [optValue] "r" (optValue),                    // %3
-              [addr] "0" (addr),                            // %4
-              [SPM_CSR] "I" (_SFR_IO_ADDR(SPMCSR)),         // %5
-              [tmp] "d" (tmp)                               // %6
+              [spmCmd2] "r" (spmCmd2),                        // %3
+              [optValue] "r" (optValue),                    // %4
+              [addr] "0" (addr),                            // %5
+              [SPM_CSR] "I" (_SFR_IO_ADDR(SPMCSR)),         // %6
+              [tmp] "d" (tmp)                               // %7
     );
 #endif
 
