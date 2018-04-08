@@ -11,70 +11,40 @@ import struct
 from intelhex import IntelHex
 from hexdump import hexdump
 
+from kp_boot_32u4.constants import *
+
 DEBUG_ENABLED = False
-
-USB_VID = 0x6666
-USB_PID = 0x9999
-
-EP_SIZE_VENDOR = 64
-
-SPMEN_bm = (1<<0)
-PGERS_bm = (1<<1)
-PGWRT_bm = (1<<2)
-BLBSET_bm = (1<<3)
-RWWSRE_bm = (1<<4)
-SIGRD_bm = (1<<5)
-RWWSB_bm = (1<<6)
-SPMIE_bm = (1<<7)
-
-SPM_HEADER_SIZE = 6
-SPM_PAYLOAD_SIZE = EP_SIZE_VENDOR - SPM_HEADER_SIZE
-
-USB_CMD_VERSION = 0
-USB_CMD_INFO = 1
-USB_CMD_ERASE = 2
-USB_CMD_SPM = 3
-USB_CMD_WRITE_EEPROM = 4
-USB_CMD_RESET = 5
-
-CHIP_ID_MASK = 0x3F
-
-CHIP_ID_TABLE = {
-    0x00: ("CHIP_ID_ATmega8U2"   , 8 * 2**10   , 512),
-    0x01: ("CHIP_ID_ATmega16U2"  , 16 * 2**10  , 512),
-    0x02: ("CHIP_ID_ATmega32U2"  , 32 * 2**10  , 1024),
-
-    0x03: ("CHIP_ID_ATmega16U4"  , 16 * 2**10  , 512),
-    0x04: ("CHIP_ID_ATmega32U4"  , 32 * 2**10  , 1024),
-
-    0x05: ("CHIP_ID_ATmega32U6"  , 32 * 2**10  , 1024),
-
-    0x06: ("CHIP_ID_AT90USB646"  , 64 * 2**10  , 2048),
-    0x07: ("CHIP_ID_AT90USB647"  , 64 * 2**10  , 2048),
-    0x08: ("CHIP_ID_AT90USB1286" , 128 * 2**10 , 4096),
-    0x09: ("CHIP_ID_AT90USB1287" , 128 * 2**10 , 4096),
-}
-
-BOOT_SIZE_MASK = 0xC000
-BOOT_SIZE_bp = 6
-BOOT_SIZE_00 = (0b00 << BOOT_SIZE_bp)
-BOOT_SIZE_01 = (0b01 << BOOT_SIZE_bp)
-BOOT_SIZE_10 = (0b10 << BOOT_SIZE_bp)
-BOOT_SIZE_11 = (0b11 << BOOT_SIZE_bp)
 
 class KpBoot32u4Error(Exception):
     pass
 
-def find_devices(vid=USB_VID, pid=USB_PID):
+def find_devices(vid=USB_VID, pid=USB_PID, chip_name=None, min_version=None,
+                 path=None):
     hid_devices = easyhid.Enumeration().find(vid=vid, pid=pid)
-    return [BootloaderDevice(dev) for dev in hid_devices]
+    result = []
+    for hid_dev in hid_devices:
+        try:
+            boot_dev = BootloaderDevice(hid_dev)
+        except:
+            print(
+                "Warning: couldn't open a HID device check permissions and that"
+                " it is not already in use: {}".format(hid_dev.description()),
+                file=sys.stderr
+            )
+            continue
+        if chip_name and boot_dev.chip_name != chip_name:
+            continue
+        if min_version and boot_dev.version < min_version:
+            continue
+        if path and boot_dev.path != path:
+            continue
+        result.append(boot_dev)
+    return result
 
 class BootloaderDevice(object):
     def __init__(self, hid_dev):
         self._hid_dev = hid_dev
         self._mcu_has_been_reset = False
-        # self.eeprom_length = EEPROM_LENGTH
-        # self.flash_length = FLASH_LENGTH
 
         with self._hid_dev:
             self._load_device_info()
@@ -137,20 +107,24 @@ class BootloaderDevice(object):
             self._page_size = 128
 
         self._chip_name = name
-        self._flash_length = flash
-        self._eeprom_length = eeprom
+        self._flash_size = flash
+        self._eeprom_size = eeprom
 
     @property
     def version(self):
         return self._version
 
     @property
+    def path(self):
+        return self._hid_dev.path
+
+    @property
     def page_size(self):
         return self._page_size
 
     @property
-    def flash_length(self):
-        return self._flash_length
+    def flash_size(self):
+        return self._flash_size
 
     @property
     def boot_size(self):
@@ -158,11 +132,15 @@ class BootloaderDevice(object):
 
     @property
     def application_size(self):
-        return self._flash_length - self._boot_size
+        return self._flash_size - self._boot_size
 
     @property
-    def eeprom_length(self):
-        return self._eeprom_length
+    def eeprom_size(self):
+        return self._eeprom_size
+
+    @property
+    def chip_name(self):
+        return self._chip_name
 
     def _spm_packet(self, cmd, address, action, data=None, length=0,
                     action2=0):
@@ -272,7 +250,7 @@ class BootloaderDevice(object):
     #     assert(start_address + len(data) <= self.application_size)
 
     def write_eeprom(self, start_address, data):
-        assert(start_address + len(data) <= self.eeprom_length)
+        assert(start_address + len(data) <= self.eeprom_size)
 
 
         chunks = self._make_chunks(data, SPM_PAYLOAD_SIZE)

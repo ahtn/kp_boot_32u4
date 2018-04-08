@@ -12,6 +12,9 @@ FORMAT = ihex
 USB_VID = 6666
 USB_PID = 9999
 
+VPATH += src
+CFLAGS += -Isrc
+
 #######################################################################
 #                        board config options                         #
 #######################################################################
@@ -35,7 +38,7 @@ include $(AVR_MK_FILE_DIR)/boards.mk
 
 include avr-makefile/avr-mega.mk
 
-include usb/usb.mk
+include src/usb/usb.mk
 
 #######################################################################
 #                         programmer options                          #

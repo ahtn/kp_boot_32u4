@@ -32,12 +32,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '-s', dest='serial',
-    type=str, default=None,
-    help='Serial number of the USB device to flash.'
-)
-
-parser.add_argument(
     '-l', dest='listing',action='store_const',
     const=True, default=False,
     help='If this flag is given, list the available devices'
@@ -95,7 +89,8 @@ if __name__ == "__main__":
     if not args.flash_hex \
             and not args.erase \
             and not args.eeprom_hex \
-            and not args.reset:
+            and not args.reset \
+            and not args.listing:
         parser.print_help()
         exit(EXIT_ARGUMENTS_ERROR)
 
@@ -105,6 +100,13 @@ if __name__ == "__main__":
         vid, pid = parse_vidpid(args.usb_id)
 
     devices = kp_boot_32u4.find_devices(vid, pid)
+
+    if args.listing:
+        for dev in devices:
+            print(
+                "path='{}': mcu='{}', flash={}, boot_size={}"
+                .format(dev.path, dev.chip_name, dev.flash_size, dev.boot_size)
+            )
 
     if len(devices) > 1:
         print("Mulitple devices found, exiting...", file=sys.stderr)

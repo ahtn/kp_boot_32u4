@@ -19,7 +19,11 @@
 ; * r0:r1: optional data value used by SPM command
 ; * Z[r30:r31]: address used by SPM command
 ; * r10: spm command loaded into SPMCSR register
-; * r11: spm command loaded into SPMCSR register
+; * r11: spm command loaded into SPMCSR register. It should be used
+;        to re-enable the RWW enable section after flash erase/write
+;        operations by setting it equal to `(1<<SPMEN) | (1<<RWWSRE)`.
+;        When writing to the temporary page buffer, it should be set
+;        to 0 to perform no action.
 ;
 ; Returns:
 ;     Nothing.
