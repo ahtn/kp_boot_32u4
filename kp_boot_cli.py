@@ -129,11 +129,7 @@ if __name__ == "__main__":
         target.write_flash_hex(args.flash_hex)
         needs_reset = True
 
-    # if args.reset or needs_reset:
-    #     target.reset_mcu()
-    # else:
-    #     target.close()
-    if args.reset:
+    if args.reset or needs_reset:
         target.reset_mcu()
     else:
         target.close()

@@ -11,6 +11,8 @@ import struct
 from intelhex import IntelHex
 from hexdump import hexdump
 
+DEBUG_ENABLED = False
+
 USB_VID = 0x6666
 USB_PID = 0x9999
 
@@ -85,25 +87,28 @@ class BootloaderDevice(object):
             return
         self._hid_dev.close()
 
-    def write(self, data):
+    def _write(self, data):
         data = bytearray(data)
         assert(len(data) <= EP_SIZE_VENDOR)
         # pad the packet to match EP_SIZE_VENDOR, required for raw HID
         data += bytearray( [0xff] * (EP_SIZE_VENDOR - len(data)) )
 
-        print("Writing to device -> ")
-        hexdump(bytes(data))
+        if DEBUG_ENABLED:
+            print("Writing to device -> ")
+            hexdump(bytes(data))
         self._hid_dev.write(data)
 
-    def read(self):
-        print("Read from device -> ")
+    def _read(self):
+        if DEBUG_ENABLED:
+            print("Read from device -> ")
         data = self._hid_dev.read()
-        hexdump(bytes(data))
+        if DEBUG_ENABLED:
+            hexdump(bytes(data))
         return data
 
     def _load_device_info(self):
-        self.write([USB_CMD_INFO])
-        data = self.read()
+        self._write([USB_CMD_INFO])
+        data = self._read()
 
         response_cmd = data[0]
         if response_cmd != USB_CMD_INFO:
@@ -239,8 +244,8 @@ class BootloaderDevice(object):
         return result
 
     def erase_page(self, address):
-        self.write(self._flash_erase_packet(address))
-        self.read()
+        self._write(self._flash_erase_packet(address))
+        self._read()
 
     def write_flash_page(self, address, data):
         assert(address+self.page_size <= self.application_size)
@@ -250,14 +255,14 @@ class BootloaderDevice(object):
 
         chunks = self._make_chunks(data, SPM_PAYLOAD_SIZE)
         for (i, chunk) in enumerate(chunks):
-            self.write(self._temporary_buffer_packet(
+            self._write(self._temporary_buffer_packet(
                 address + i*SPM_PAYLOAD_SIZE,
                 chunk
             ))
-            self.read()
+            self._read()
 
-        self.write(self._flash_write_packet(address))
-        self.read()
+        self._write(self._flash_write_packet(address))
+        self._read()
 
     def erase_application_flash(self):
         for pg_num in range(self.application_size // self.page_size):
@@ -272,16 +277,16 @@ class BootloaderDevice(object):
 
         chunks = self._make_chunks(data, SPM_PAYLOAD_SIZE)
         for (i, chunk) in enumerate(chunks):
-            self.write(self._spm_packet(
+            self._write(self._spm_packet(
                 USB_CMD_WRITE_EEPROM,
                 start_address + i*SPM_PAYLOAD_SIZE,
                 action = 0,
                 data = chunk
             ))
-            self.read()
+            self._read()
 
     def reset_mcu(self):
-        self.write([USB_CMD_RESET])
+        self._write([USB_CMD_RESET])
         self._mcu_has_been_reset = True
 
 
