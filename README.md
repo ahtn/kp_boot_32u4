@@ -33,7 +33,9 @@ Ways to enter the bootloader:
   automatically reset into the firmware application.
 * 2. The firmware can enter the bootloader by setting a magic value and causing
   wdt reset. The bootloader will check for the value `0xda54` at the SRAM
-  address and if it equals `0x01fc` the application code will be run.
+  address `0x01fc`. If the value matches `0xda54` then the bootloader will be
+  run, other values at the address `0x01fc` will cause the code to jmp to
+  the application section.
 
 ## SPM interface
 
