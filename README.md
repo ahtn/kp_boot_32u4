@@ -85,3 +85,7 @@ wait1:  in	r10, IO_(SPMCSR)	; get SPMCR into r18
 finspm:
 	ret
 ```
+
+## License
+
+MIT Licensed.
