@@ -4,9 +4,15 @@
 
 #include <avr/io.h>
 
+#include "config.h"
+
 void usb_init(void);			// initialize everything
 uint8_t usb_configured(void);		// is the USB port configured
 void usb_poll(void);
+
+
+#define ENDPOINT0_SIZE      64
+#define DEFAULT_BUFFERING   EP_SINGLE_BUFFER
 
 #define EP_TYPE_CONTROL			0x00
 #define EP_TYPE_BULK_IN			0x81

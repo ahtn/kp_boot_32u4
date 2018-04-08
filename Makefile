@@ -6,8 +6,6 @@ TARGET_BASE_NAME = kp_boot_32u4
 ARCH = AVR8
 F_CPU = 16000000
 
-MCU = atmega32u4
-
 # Output format. (can be srec, ihex, binary)
 FORMAT = ihex
 
@@ -34,6 +32,8 @@ include $(AVR_MK_FILE_DIR)/boards.mk
 #######################################################################
 #                       include other makefiles                       #
 #######################################################################
+
+include avr-makefile/avr-mega.mk
 
 include usb/usb.mk
 
@@ -75,6 +75,16 @@ CSTANDARD = -std=gnu99
 CDEFS +=
 ADEFS +=
 
+CFLAGS += -DBOOT_SIZE=BOOT_SIZE_$(BOOTSZ)
+CFLAGS += -DCHIP_ID=CHIP_ID_$(MCU_STRING)
+
+# Position the spm_call function at the very end of flash/bootloader
+SPM_CALL_SIZE = 16
+# SPM_CALL_POS = $(shell python -c "print( hex(\ $(FLASH_SIZE)-$(SPM_CALL_SIZE)\) )")
+# BOOT_SECTION_START = $(shell python -c "print( hex(\$(FLASH_SIZE)-$(BOOT_SIZE)\) )")
+SPM_CALL_POS = $(shell python -c "print( hex( $(FLASH_SIZE)-$(SPM_CALL_SIZE)) )")
+BOOT_SECTION_START = $(shell python -c "print( hex($(FLASH_SIZE)-$(BOOT_SIZE)) )")
+
 # LD_SCRIPT_DIR = /usr/lib/ldscripts
 LD_SCRIPT_DIR = ./ld_scripts
 
@@ -82,8 +92,10 @@ LD_SCRIPT = avr5.xn
 
 LDFLAGS += -T $(LD_SCRIPT_DIR)/$(LD_SCRIPT)
 
-# LDFLAGS += -Wl,--section-start=.boot_extra=0x2000
-LDFLAGS += -Wl,--section-start=.boot_extra=0x7F80
+LDFLAGS += -Wl,--section-start=.text=$(BOOT_SECTION_START)
+
+LDFLAGS += -Wl,--section-start=.boot_extra=$(SPM_CALL_POS)
+LDFLAGS += -Wl,--undefined=.boot_extra
 
 #######################################################################
 #                               recipes                               #

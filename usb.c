@@ -27,81 +27,18 @@
 
 #include <util/delay.h>
 #include <avr/eeprom.h>
+#include <avr/wdt.h>
 
 #include "usb.h"
 
 #include "usb/descriptors.h"
 #include "usb/util/usb_hid.h"
 
-#include "usb_32u4.h"
-
-
 /**************************************************************************
  *
  *  Endpoint Buffer Configuration
  *
  **************************************************************************/
-
-#define ENDPOINT0_SIZE      64
-
-#define KEYBOARD_INTERFACE  0
-#define KEYBOARD_ENDPOINT   1
-#define KEYBOARD_SIZE       8
-#define KEYBOARD_BUFFER     EP_DOUBLE_BUFFER
-
-#define DEFAULT_BUFFERING EP_SINGLE_BUFFER
-// #define DEFAULT_BUFFERING EP_DOUBLE_BUFFER
-
-#define MAX_ENDPOINT 4
-
-/**************************************************************************
- *
- *  Variables - these are the only non-stack RAM usage
- *
- **************************************************************************/
-
-#ifdef USE_USB_CONFIGURATION
-// zero when we are not configured, non-zero when enumerated
-static volatile uint8_t usb_configuration;
-#endif
-
-// which modifier keys are currently pressed
-// 1=left ctrl,    2=left shift,   4=left alt,    8=left gui
-// 16=right ctrl, 32=right shift, 64=right alt, 128=right gui
-
-#define BOOT_REPORT_KEY_COUNT 6
-typedef struct {
-    uint8_t modifiers;
-    uint8_t unused;
-    uint8_t keys[BOOT_REPORT_KEY_COUNT];
-} hid_report_boot_keyboard_t;
-
-#if 0
-hid_report_boot_keyboard_t kb_report = {0};
-
-// protocol setting from the host.  We use exactly the same report
-// either way, so this variable only stores the setting since we
-// are required to be able to report which setting is in use.
-static uint8_t keyboard_protocol=1;
-
-// the idle configuration, how often we send the report to the
-// host (ms * 4) even when it hasn't changed
-static uint8_t keyboard_idle_config=125;
-
-// count until idle timeout
-static uint8_t keyboard_idle_count=0;
-
-// 1=num lock, 2=caps lock, 4=scroll lock, 8=compose, 16=kana
-volatile uint8_t keyboard_leds=0;
-#endif
-
-
-/**************************************************************************
- *
- *  Public Functions - these are the API intended for the user
- *
- **************************************************************************/
-
 
 // initialize USB
 void usb_init(void) {
@@ -115,20 +52,12 @@ void usb_init(void) {
     UDCON = 1;      // disconnect attach resistor
     _delay_ms(10);
     UDCON = 0;      // enable attach resistor
-
-#ifdef USE_USB_CONFIGURATION
-    usb_configuration = 0;
-#endif
-
-    // enable usb interrupts
-    // UDIEN = (1<<EORSTE)|(1<<SOFE);
-    UDIEN = 0;
-
 }
 
 
 // NOTE: All writes to the HID endpoint must match the size used in the HID
 // endpoint descriptor.
+static inline
 void usb_write_endpoint(uint8_t ep_number, const uint8_t *src) {
     uint8_t i;
     UENUM = ep_number;
@@ -140,7 +69,6 @@ void usb_write_endpoint(uint8_t ep_number, const uint8_t *src) {
 
 void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
     uint8_t i;
-
     UENUM = ep_number;
     *length = UEBCX;
     for (i = 0; i < *length; ++i) {
@@ -149,23 +77,37 @@ void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
     UEINTX = 0x6B;
 }
 
+/// Checks if the given USB endpoint is ready
+static inline
+bool usb_is_endpoint_ready(uint8_t ep_num) {
+    uint8_t result;
+    UENUM = ep_num;
+    result = UEINTX & (1<<RWAL);
+    return result;
+}
+
 // Misc functions to wait for ready and send/receive packets
-static inline void usb_wait_in_ready(void)
-{
+static inline
+void usb_wait_in_ready(void) {
     while (!(UEINTX & (1<<TXINI))) ;
 }
-static inline void usb_send_in(void)
-{
+
+static inline
+void usb_send_in(void) {
     UEINTX = ~(1<<TXINI);
 }
-static inline void usb_wait_receive_out(void)
-{
+
+#if 0
+static inline
+void usb_wait_receive_out(void) {
     while (!(UEINTX & (1<<RXOUTI))) ;
 }
-static inline void usb_ack_out(void)
-{
+
+static inline
+void usb_ack_out(void) {
     UEINTX = ~(1<<RXOUTI);
 }
+#endif
 
 #define is_setup_packet(x) (x & (1<<RXSTPI))
 
@@ -227,7 +169,7 @@ static void make_serial_string(void) {
 }
 #endif
 
-uint8_t usb_handle_ep0(usb_request_t *req) {
+static uint8_t usb_handle_ep0(usb_request_t *req) {
     switch(req->std.bRequest) {
         case USB_REQ_GET_DESCRIPTOR: {
             uint16_t length   = 0;
@@ -360,8 +302,8 @@ uint8_t usb_handle_ep0(usb_request_t *req) {
     return 0;
 }
 
-void usb_hid_request(usb_request_std_t *req) {
 #if 0
+static void usb_hid_request(usb_request_std_t *req) {
     switch (req->wIndex) {
         case INTERFACE_BOOT_KEYBOARD: {
             if (req->bmRequestType == 0xA1) {
@@ -407,19 +349,23 @@ void usb_hid_request(usb_request_std_t *req) {
         } break;
 
     }
-#endif
 
     USB_EP0_STALL();
 }
+#endif
 
 // USB Device Interrupt - handle all device-level events
 // the transmit buffer flushing is triggered by the start of frame
-void usb_gen_isr(void) {
+static void usb_gen_isr(void) {
     uint8_t irq_flags;
     // static uint8_t div4=0;
 
     irq_flags = UDINT;
     UDINT = 0;
+
+    if (irq_flags & (1<<SOFI)) {
+        wdt_reset();
+    }
 
     // USB end of reset interrupt
     if (irq_flags & (1<<EORSTI)) {
@@ -428,9 +374,7 @@ void usb_gen_isr(void) {
         UECFG0X = EP_TYPE_CONTROL;
         UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
         UEIENX = (1<<RXSTPE);
-#if USE_USB_CONFIGURATION
-        usb_configuration = 0;
-#endif
+
         UENUM = EP_NUM_VENDOR_IN;
         UECONX = (1<<EPEN);
 
@@ -443,7 +387,6 @@ void usb_gen_isr(void) {
         UECFG0X = EP_TYPE_INTERRUPT_OUT;
         UECFG1X = EP_SIZE(EP_OUT_SIZE_VENDOR) | DEFAULT_BUFFERING;
 
-        UERST = 0x1E;
         UERST = 0;
     }
 
@@ -469,7 +412,7 @@ void usb_gen_isr(void) {
 // functions, and the start-of-frame interrupt.
 //
 // ISR(USB_COM_vect) {
-void usb_com_isr(void) {
+static void usb_com_isr(void) {
     usb_request_t req;
 
 
@@ -553,7 +496,7 @@ enum {
     USB_CMD_RESET = 5,
 };
 
-void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue);
+static void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue);
 
 void usb_poll(void) {
     usb_com_isr();
@@ -571,13 +514,8 @@ void usb_poll(void) {
         uint8_t cmd = data[0];
         // uint16_t address = *((uint16_t*)(data+1));
         uint16_t address = (data[2]<<8) | data[1];
+        uint8_t size = data[5];
         switch(cmd) {
-            case USB_CMD_INFO: {
-            } break;
-
-            case USB_CMD_ERASE: {
-            } break;
-
             // Format:
             //
             // data[0]: USB_CMD_SPM
@@ -589,10 +527,9 @@ void usb_poll(void) {
             case USB_CMD_SPM: {
                 const uint8_t spm_action = data[3];
                 const uint8_t spm_action2 = data[4];
-                uint8_t size = data[5];
                 for (uint8_t i = 6; i < size; i+=2) {
                     // const uint16_t spm_data = *((uint16_t*)&data[i]);
-                    const uint16_t spm_data = (data[i+1 + 6]<<8) | data[i + 6];
+                    const uint16_t spm_data = (data[i+1]<<8) | data[i];
                     spm_leap_cmd(
                         address+i - 6,
                         spm_action,
@@ -607,7 +544,6 @@ void usb_poll(void) {
             // data[3]: number of bytes to write
             // data[4:...]: the data to be written
             case USB_CMD_WRITE_EEPROM: {
-                uint8_t size = data[5];
                 for (uint8_t i = 6; i < size; ++i) {
                     eeprom_write_byte((uint8_t*)address, data[i]);
                     address++;
@@ -616,8 +552,15 @@ void usb_poll(void) {
 
             case USB_CMD_RESET: {
                 while(1); // wait for wdt to timeout to cause a reset
-            }
+            } break;
+
+            default: {
+            } break;
         }
+
+        data[0] = USB_CMD_INFO;
+        data[1] = BOOTLOADER_VERSION;
+        data[2] = CHIP_ID | BOOT_SIZE;
 
         usb_write_endpoint(
             EP_NUM_VENDOR_IN,
@@ -627,7 +570,7 @@ void usb_poll(void) {
     }
 }
 
-void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue) {
+static void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue) {
     // Assume that the instruction before SPM is `OUT SPMCSR, rXX`
     // Or it is using STS SPMCSR, rXX.  Need to extract the rXX from
     // the instruction.  It's in the same place for both opcodes:
@@ -637,8 +580,8 @@ void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optVa
     uint8_t tmp=0;
 
     asm volatile(
-        // "push r10\n"
-        // "push r20\n"
+        "push r10\n"
+        "push r11\n"
         "push r0\n"
         "push r1\n"             // needed for opt command.
         "push %[tmp]\n"
@@ -666,8 +609,8 @@ void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optVa
         "pop %[tmp]\n"
         "pop r1\n"
         "pop r0\n"
-        // "pop r20\n"
-        // "pop r10\n"
+        "pop r11\n"
+        "pop r10\n"
             // output registers
             : "=d" (tmp),                                   // %0
               "=r" (addr)                                   // %1

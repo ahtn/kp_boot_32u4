@@ -16,6 +16,7 @@ USB_PID = 0x9999
 EP_SIZE_VENDOR = 64
 
 PAGE_SIZE = 128
+EEPROM_LENGTH = 1024
 
 SPMEN_bm = (1<<0)
 PGERS_bm = (1<<1)
@@ -45,6 +46,7 @@ class BootloaderDevice(object):
         self.hid_dev = hid_dev
         self.page_size = PAGE_SIZE
         self._mcu_has_been_reset = False
+        self.eeprom_length = EEPROM_LENGTH
 
     def open(self):
         self.hid_dev.open()
@@ -70,7 +72,7 @@ class BootloaderDevice(object):
         hexdump(bytes(data))
         return data
 
-    def _spm_packet(self, address, action, data=None, length=0,
+    def _spm_packet(self, cmd, address, action, data=None, length=0,
                     action2=0):
         # check that the write address is word aligned
         assert(address % 2 == 0)
@@ -82,7 +84,6 @@ class BootloaderDevice(object):
         if data == None:
             data = []
         assert(len(data) <= SPM_PAYLOAD_SIZE)
-        # data += [0xff] * (SPM_PAYLOAD_SIZE - len(data))
 
         # The spm command will be repeated with the data from this section.
         # The bootloader will start at addr=6 (start of data section)
@@ -90,10 +91,12 @@ class BootloaderDevice(object):
         cmd_read_end_address = length or len(data)
         cmd_read_end_address += 6
 
+        # data += [0xff] * (SPM_PAYLOAD_SIZE - len(data))
+
         packet = bytearray()
         packet += struct.pack(
             "< B H B B B",
-            USB_CMD_SPM, address, action, action2, cmd_read_end_address
+            cmd, address, action, action2, cmd_read_end_address
         )
         packet += bytearray(data)
 
@@ -101,31 +104,34 @@ class BootloaderDevice(object):
 
     def _lock_packet(self, lock_bits):
         return self._spm_packet(
+            USB_CMD_SPM,
             0x0000,
             SPMEN_bm | BLBSET_bm,
             [lock_bits],
             length = 1
         )
 
-    def _erase_packet(self, address):
+    def _flash_erase_packet(self, address):
         return self._spm_packet(
+            USB_CMD_SPM,
             address,
             SPMEN_bm | PGERS_bm,
             length = 1,
-            action2 = SPMEN_bm | RWWSRE_bm
-
+            action2 = SPMEN_bm | RWWSRE_bm,
         )
 
-    def _write_packet(self, address):
+    def _flash_write_packet(self, address):
         return self._spm_packet(
+            USB_CMD_SPM,
             address,
             SPMEN_bm | PGWRT_bm,
             length = 1,
-            action2 = SPMEN_bm | RWWSRE_bm
+            action2 = SPMEN_bm | RWWSRE_bm,
         )
 
     def _temporary_buffer_packet(self, address, data):
         return self._spm_packet(
+            USB_CMD_SPM,
             address,
             SPMEN_bm,
             data
@@ -148,7 +154,7 @@ class BootloaderDevice(object):
     def write_page(self, address, data):
         assert(len(data) <= PAGE_SIZE)
 
-        self.write(self._erase_packet(address))
+        self.write(self._flash_erase_packet(address))
         self.read()
 
         chunks = self._make_chunks(data, SPM_PAYLOAD_SIZE)
@@ -159,8 +165,21 @@ class BootloaderDevice(object):
             ))
             self.read()
 
-        self.write(self._write_packet(address))
+        self.write(self._flash_write_packet(address))
         self.read()
+
+    def write_eeprom(self, start_address, data):
+        assert(start_address + len(data) < self.eeprom_length)
+
+        chunks = self._make_chunks(data, SPM_PAYLOAD_SIZE)
+        for (i, chunk) in enumerate(chunks):
+            self.write(self._spm_packet(
+                USB_CMD_WRITE_EEPROM,
+                start_address + i*SPM_PAYLOAD_SIZE,
+                action = 0,
+                data = chunk
+            ))
+            self.read()
 
     def reset_mcu(self):
         self.write([USB_CMD_RESET])
@@ -168,12 +187,25 @@ class BootloaderDevice(object):
 
 
 if __name__ == "__main__":
+
+
     dev = find_devices()[0]
 
     dev.open()
     for i in range(32):
-        dev.write_page(0x1000 + i*128, [i]*128)
-    # for i in range(32):
+        dev.write_page(0x4000 + i*128, [i]*128)
+    # for i in range(10):
     #     dev.write_page(0x1000 + i*128, list(range(128)))
-    # dev.reset_mcu()
+    # for i in range(10):
+    #     dev.write_page(0x1000 + i*128, [0xff]*128)
+
+    dev.write_eeprom(0x0100, list(range(128)))
+    dev.write_eeprom(0x0180, [0xAA]*64)
+    dev.write_eeprom(0x01C0, [0xBB]*64)
+    dev.write_eeprom(0x0200, [0xCC]*64)
+    dev.write_eeprom(0x0240, [0xDD]*64)
+    dev.write_eeprom(0x0280, [0xEE]*64)
+    dev.write_eeprom(0x02C0, [0xFF]*64)
+
+    dev.reset_mcu()
     dev.close()

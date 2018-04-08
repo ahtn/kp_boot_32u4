@@ -190,10 +190,6 @@ SECTIONS
   }  > data
    __data_load_start = LOADADDR(.data);
    __data_load_end = __data_load_start + SIZEOF(.data);
-  .boot_extra :
-  {
-    KEEP(*(.boot_extra))
-  }  > boot_extra
   /* Global data not cleared after reset.  */
   .noinit  ADDR(.bss) + SIZEOF (.bss)  :  AT (ADDR (.noinit))
   {
