@@ -117,21 +117,18 @@ if __name__ == "__main__":
 
     target = devices[0]
 
-    target.open()
+    with target:
+        needs_reset = False
 
-    needs_reset = False
+        if args.erase:
+            target.erase_application_flash()
 
-    if args.erase:
-        target.erase_application_flash()
+        if args.eeprom_hex:
+            target.write_eeprom_hex(args.eeprom_hex)
 
-    if args.eeprom_hex:
-        target.write_eeprom_hex(args.eeprom_hex)
+        if args.flash_hex:
+            target.write_flash_hex(args.flash_hex)
+            needs_reset = True
 
-    if args.flash_hex:
-        target.write_flash_hex(args.flash_hex)
-        needs_reset = True
-
-    if args.reset or needs_reset:
-        target.reset_mcu()
-    else:
-        target.close()
+        if args.reset or needs_reset:
+            target.reset_mcu()

@@ -49,13 +49,19 @@ class BootloaderDevice(object):
         with self._hid_dev:
             self._load_device_info()
 
-    def open(self):
+    def connect(self):
         self._hid_dev.open()
 
-    def close(self):
+    def disconnet(self):
         if self._mcu_has_been_reset:
             return
         self._hid_dev.close()
+
+    def __enter__(self):
+        self.connect()
+
+    def __exit__(self, err_type, err_value, traceback):
+        self.disconnet()
 
     def _write(self, data):
         data = bytearray(data)
