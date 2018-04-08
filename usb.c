@@ -515,6 +515,7 @@ void usb_poll(void) {
         // uint16_t address = *((uint16_t*)(data+1));
         uint16_t address = (data[2]<<8) | data[1];
         uint8_t size = data[5];
+
         switch(cmd) {
             // Format:
             //
@@ -551,6 +552,7 @@ void usb_poll(void) {
             } break;
 
             case USB_CMD_RESET: {
+                UDCON = 1;      // disconnect attach resistor
                 while(1); // wait for wdt to timeout to cause a reset
             } break;
 
@@ -558,6 +560,7 @@ void usb_poll(void) {
             } break;
         }
 
+        // load response value
         data[0] = USB_CMD_INFO;
         data[1] = BOOTLOADER_VERSION;
         data[2] = CHIP_ID | BOOT_SIZE;

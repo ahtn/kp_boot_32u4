@@ -97,6 +97,17 @@ LDFLAGS += -Wl,--section-start=.text=$(BOOT_SECTION_START)
 LDFLAGS += -Wl,--section-start=.boot_extra=$(SPM_CALL_POS)
 LDFLAGS += -Wl,--undefined=.boot_extra
 
+
+# # 4kb
+# LFUSE = 7F
+# HFUSE = D8
+# EFUSE = FB # --> EFUSE = F3
+
+# 1kb
+LFUSE = 7F
+HFUSE = DC
+EFUSE = CB
+
 #######################################################################
 #                               recipes                               #
 #######################################################################

@@ -5,6 +5,7 @@
 
 #define BOOTLOADER_VERSION 0
 
+#define CHIP_ID_MASK 0x3F
 enum {
     CHIP_ID_ATmega8U2   = 0x00,
     CHIP_ID_ATmega16U2  = 0x01,
@@ -21,6 +22,7 @@ enum {
     CHIP_ID_AT90USB1287 = 0x09,
 };
 
+#define BOOT_SIZE_MASK 0xC0
 enum {
     BOOT_SIZE_00 = (0b00 << 6),
     BOOT_SIZE_01 = (0b01 << 6),
