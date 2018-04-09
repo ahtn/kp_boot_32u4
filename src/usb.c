@@ -354,26 +354,18 @@ static void usb_hid_request(usb_request_std_t *req) {
 // the transmit buffer flushing is triggered by the start of frame
 static void usb_gen_isr(void) {
     uint8_t irq_flags;
-    // static uint8_t has_seen_sof_packet = 0;
-    // static uint8_t div4=0;
+    // static uint8_t has_seen_setup_packet = 0;
 
     irq_flags = UDINT;
     UDINT = 0;
 
-    // if (has_seen_sof_packet) {
-    //     wdt_reset();
-    // }
-
-    // if (irq_flags & (1<<SOFI)) {
-    //     has_seen_sof_packet = 1;
-    // }
-
-    // if (irq_flags & (1<<SOFI)) {
+    // if (has_seen_setup_packet) {
     //     wdt_reset();
     // }
 
     // USB end of reset interrupt
     if (irq_flags & (1<<EORSTI)) {
+        // has_seen_setup_packet = 1;
 #if 0
         uint8_t i;
         for (i = 0; i <= MAX_EP_NUM; ++i) {
