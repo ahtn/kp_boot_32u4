@@ -24,6 +24,36 @@ Program an eeprom hex file:
 ./kp_boot_32u4_cli.py -E eeprom.hex
 ```
 
+## GUI interface
+
+You can also use the [keyplus](https://github.com/ahtn/keyplus) flasher to
+wire firmware hex files.
+
+You can [download the flasher here.](https://github.com/ahtn/keyplus/releases)
+
+![keyplus gui](https://rawgit.com/ahtn/kp_boot_32u4/master/img/keyplus_gui.png)
+
+## Convert a Arduino Pro Micro to use the bootloader (without an ISP programmer)
+
+Since the Pro Micro doesn't set the lock bits on the bootloader section, it's
+possible to update its bootloader without an ISP programmer by loading a
+special program onto it using its current bootloader.
+
+[Here's an Arduino script
+](https://github.com/ahtn/avr-bootloader-upgrade/blob/master/promicro_to_keyplus.ino)
+that will replace the Pro Micro `Caterina` bootloader with the `kp_boot_32u4`
+bootloader. Simply flash this script to a Pro Micro using the Arduino IDE and
+the bootloader will be replaced. When the bootloader has been replaced
+successfully, the left LED on the Pro Micro will light up. Then the next time
+the Pro Micro is restarted, the device will enter the new bootloader.
+See the [Sparkfun page on how to setup the
+Arduino IDE and program the Pro Micro](https://learn.sparkfun.com/tutorials/pro-micro--fio-v3-hookup-guide#windows_driver).
+
+Although the bootloader only needs 1kb of flash, using this technique it will
+still take up 4kb of flash space since the size of the bootloader cannot be
+change using this technique. Changing the size of the bootloader to 1kb still
+requires an external programmer.
+
 ## Enter bootloader
 Ways to enter the bootloader:
 
