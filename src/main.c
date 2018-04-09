@@ -40,7 +40,10 @@ int main(void) {
     // can read it if needed
     *(uint8_t*)(MAGIC_ADDRESS) = MCUSR;
     const uint8_t external_reset = (MCUSR & (1<<EXTRF));
-    MCUSR &= ~((1<<EXTRF) | (1<<WDRF));
+    // MCUSR &= ~((1<<EXTRF) | (1<<WDRF));
+    MCUSR = 0;
+
+    const uint8_t is_flash_empty = pgm_read_word(0x0000) == 0xffff;
 
     // Check if we should enter the bootloader.
     //
@@ -50,7 +53,7 @@ int main(void) {
     // 2. The software wants to enter the bootloader by setting the magic value
     // 3. An external reset was detect
     if (
-        ( (!magic_start_boot) && (!external_reset) )
+        ( (!magic_start_boot) && (!external_reset) && (!is_flash_empty) )
         || magic_start_app
     ) {
         // set one bit of the magic data, so next reset will enter bootloader
