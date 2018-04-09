@@ -7,7 +7,7 @@ Supports writing flash, eeprom, and lock bits.
 
 It also exposes an `SPM` interface allowing firmware to write its own flash.
 
-## cli interface
+## CLI interface
 
 List the currently connected devices:
 ```sh
@@ -29,8 +29,7 @@ Ways to enter the bootloader:
 
 * 1. Push the reset button (short RST pin to GND) once. The device will then
   stay in bootloader mode until a firmware hex file is loaded, or the reset
-  button is pushed a second time.  If no USB port is detected the device will
-  automatically reset into the firmware application.
+  button is pushed a second time.
 * 2. The firmware can enter the bootloader by setting a magic value and causing
   wdt reset. The bootloader will check for the value `0xda54` at the SRAM
   address `0x01fc`. If the value matches `0xda54` then the bootloader will be
@@ -43,6 +42,8 @@ The bootloader has an SPM instruction with the appropriate support code to
 allow firmware to update its own flash. The interface is always stored in
 the last 16 bytes of flash at address. (TODO: add source code library
 for common SPM commands).
+
+The code stored in the last 16 bytes corresponds to this assembly.
 
 ```asm
 ; ---
@@ -63,9 +64,6 @@ for common SPM commands).
 ;     Nothing.
 ; ---
 
-.section .boot_extra,"ax",@progbits
-.global call_spm
-
 call_spm:
 	out	IO_(SPMCSR), r10	; r18 decides function
 	spm				; Store program memory
@@ -77,12 +75,6 @@ wait1:  in	r10, IO_(SPMCSR)	; get SPMCR into r18
 	out	IO_(SPMCSR), r11
 	spm
 
-; I don't think it is necessary to wait after re-enable RWW section
-; wait2:  in	r10, IO_(SPMCSR)	; get SPMCR into r18
-; 	sbrc	r10, SPMEN
-; 	rjmp	wait2			; Wait for SPMEN flag cleared
-
-finspm:
 	ret
 ```
 

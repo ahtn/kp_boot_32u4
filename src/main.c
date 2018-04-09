@@ -74,5 +74,6 @@ int main(void) {
 
     while (1) {
         usb_poll();
+        wdt_reset();
     }
 }

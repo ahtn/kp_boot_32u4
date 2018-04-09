@@ -67,11 +67,12 @@ void usb_write_endpoint(uint8_t ep_number, const uint8_t *src) {
     UEINTX = (1<<STALLEDI) | (1<<RXSTPI) | (1<<NAKOUTI) | (1<<RWAL);
 }
 
-void usb_read_endpoint(uint8_t ep_number, uint8_t *dest, uint8_t *length) {
+static inline
+void usb_read_endpoint(uint8_t ep_number, uint8_t *dest) {
     uint8_t i;
     UENUM = ep_number;
-    *length = UEBCX;
-    for (i = 0; i < *length; ++i) {
+    uint8_t length = UEBCX;
+    for (i = 0; i < length; ++i) {
         dest[i] = UEDATX;
     }
     UEINTX = 0x6B;
@@ -169,7 +170,7 @@ static void make_serial_string(void) {
 }
 #endif
 
-static uint8_t usb_handle_ep0(usb_request_t *req) {
+static void usb_handle_ep0(usb_request_t *req) {
     switch(req->std.bRequest) {
         case USB_REQ_GET_DESCRIPTOR: {
             uint16_t length   = 0;
@@ -240,7 +241,6 @@ static uint8_t usb_handle_ep0(usb_request_t *req) {
 
             if (address == NULL) {
                 USB_EP0_STALL();
-                return 1;
             }
 
             // All our USB descriptors fit in one packet, so don't need to
@@ -258,14 +258,12 @@ static uint8_t usb_handle_ep0(usb_request_t *req) {
                 usb_send_in();
             }
 
-            return 1;
         } break;
 
         case USB_REQ_SET_ADDRESS: {
             usb_send_in();
             usb_wait_in_ready();
             UDADDR = req->std.wValue | (1<<ADDEN);
-            return 1;
         } break;
 
         case USB_REQ_SET_CONFIGURATION: {
@@ -278,7 +276,6 @@ static uint8_t usb_handle_ep0(usb_request_t *req) {
             usb_send_in();
             // cfg = endpoint_config_table;
 
-            return 1;
         } break;
 
         // case USB_REQ_GET_CONFIGURATION: {
@@ -286,7 +283,6 @@ static uint8_t usb_handle_ep0(usb_request_t *req) {
         //         // usb_wait_in_ready();
         //         UEDATX = usb_configuration;
         //         usb_send_in();
-        //         return 1;
         //     }
         // } break;
 
@@ -295,11 +291,9 @@ static uint8_t usb_handle_ep0(usb_request_t *req) {
         //     UEDATX = 0;
         //     UEDATX = 0;
         //     usb_send_in();
-        //     return 1;
         // } break;
 
     }
-    return 0;
 }
 
 #if 0
@@ -354,23 +348,48 @@ static void usb_hid_request(usb_request_std_t *req) {
 }
 #endif
 
+#define MAX_EP_NUM 2
+
 // USB Device Interrupt - handle all device-level events
 // the transmit buffer flushing is triggered by the start of frame
 static void usb_gen_isr(void) {
     uint8_t irq_flags;
+    // static uint8_t has_seen_sof_packet = 0;
     // static uint8_t div4=0;
 
     irq_flags = UDINT;
     UDINT = 0;
 
-    if (irq_flags & (1<<SOFI)) {
-        wdt_reset();
-    }
+    // if (has_seen_sof_packet) {
+    //     wdt_reset();
+    // }
+
+    // if (irq_flags & (1<<SOFI)) {
+    //     has_seen_sof_packet = 1;
+    // }
+
+    // if (irq_flags & (1<<SOFI)) {
+    //     wdt_reset();
+    // }
 
     // USB end of reset interrupt
     if (irq_flags & (1<<EORSTI)) {
+#if 0
+        uint8_t i;
+        for (i = 0; i <= MAX_EP_NUM; ++i) {
+            UENUM = i;
+            UECONX = (1<<EPEN);
+            if (i) {
+                UECFG0X = EP_TYPE_CONTROL;
+            } else {
+                UECFG0X = 0;
+            }
+            UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
+            UEIENX = (1<<RXSTPE);
+        }
+#else
         UENUM = 0;
-        UECONX = 1;
+        UECONX = (1<<EPEN);
         UECFG0X = EP_TYPE_CONTROL;
         UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
         UEIENX = (1<<RXSTPE);
@@ -379,13 +398,14 @@ static void usb_gen_isr(void) {
         UECONX = (1<<EPEN);
 
         UECFG0X = EP_TYPE_INTERRUPT_IN;
-        UECFG1X = EP_SIZE(EP_IN_SIZE_VENDOR) | DEFAULT_BUFFERING;
+        UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
 
         UENUM = EP_NUM_VENDOR_OUT;
         UECONX = (1<<EPEN);
 
         UECFG0X = EP_TYPE_INTERRUPT_OUT;
-        UECFG1X = EP_SIZE(EP_OUT_SIZE_VENDOR) | DEFAULT_BUFFERING;
+        UECFG1X = EP_SIZE(ENDPOINT0_SIZE) | EP_SINGLE_BUFFER;
+#endif
 
         UERST = 0;
     }
@@ -414,18 +434,13 @@ static void usb_gen_isr(void) {
 // ISR(USB_COM_vect) {
 static void usb_com_isr(void) {
     usb_request_t req;
-
-
     UENUM = 0;
 
     if ( !(is_setup_packet(UEINTX) ) ) {
         return;
     }
 
-    {
-        uint8_t length;
-        usb_read_endpoint(0, (uint8_t*)&req, &length);
-    }
+    usb_read_endpoint(0, (uint8_t*)&req);
     UEINTX = ~((1<<RXSTPI) | (1<<RXOUTI) | (1<<TXINI));
 
     const uint8_t req_type = req.val.bmRequestType & USB_REQTYPE_TYPE_MASK;
@@ -504,11 +519,9 @@ void usb_poll(void) {
 
     if (usb_is_endpoint_ready(EP_NUM_VENDOR_OUT)) {
         uint8_t data[EP_OUT_SIZE_VENDOR];
-        uint8_t length;
         usb_read_endpoint(
             EP_NUM_VENDOR_OUT,
-            data,
-            &length
+            data
         );
 
         uint8_t cmd = data[0];
