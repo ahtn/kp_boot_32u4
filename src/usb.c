@@ -579,20 +579,11 @@ void usb_poll(void) {
 }
 
 static void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_t optValue) {
-    // Assume that the instruction before SPM is `OUT SPMCSR, rXX`
-    // Or it is using STS SPMCSR, rXX.  Need to extract the rXX from
-    // the instruction.  It's in the same place for both opcodes:
-    //1001 001d dddd 0000
-
-#if 1
-    uint8_t tmp=0;
-
     asm volatile(
         "push r10\n"
         "push r11\n"
         "push r0\n"
-        "push r1\n"             // needed for opt command.
-        "push %[tmp]\n"
+        "push r1\n"
         "push r30\n"
         "push r31\n"
 
@@ -614,22 +605,17 @@ static void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint8_t spmCmd2, uint16_
         // Return from the bootloader, pop values from stack and return
         "pop r31\n"
         "pop r30\n"
-        "pop %[tmp]\n"
         "pop r1\n"
         "pop r0\n"
         "pop r11\n"
         "pop r10\n"
             // output registers
-            : "=d" (tmp),                                   // %0
-              "=r" (addr)                                   // %1
+            : "=r" (addr)                                   // %0
             // input registers
-            : [spmCmd] "r" (spmCmd),                        // %2
-              [spmCmd2] "r" (spmCmd2),                        // %3
-              [optValue] "r" (optValue),                    // %4
-              [addr] "0" (addr),                            // %5
-              [SPM_CSR] "I" (_SFR_IO_ADDR(SPMCSR)),         // %6
-              [tmp] "d" (tmp)                               // %7
+            : [spmCmd] "r" (spmCmd),                        // %1
+              [spmCmd2] "r" (spmCmd2),                      // %2
+              [optValue] "r" (optValue),                    // %3
+              [addr] "0" (addr),                            // %4
+              [SPM_CSR] "I" (_SFR_IO_ADDR(SPMCSR))          // %5
     );
-#endif
-
 }

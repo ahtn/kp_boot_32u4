@@ -43,10 +43,5 @@ wait1:  in	r10, IO_(SPMCSR)	; get SPMCR into r18
 	out	IO_(SPMCSR), r11
 	spm
 
-; I don't think it is necessary to wait after re-enable RWW section
-; wait2:  in	r10, IO_(SPMCSR)	; get SPMCR into r18
-; 	sbrc	r10, SPMEN
-; 	rjmp	wait2			; Wait for SPMEN flag cleared
-
 finspm:
 	ret

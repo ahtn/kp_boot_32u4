@@ -70,8 +70,9 @@ Ways to enter the bootloader:
 
 The bootloader has an SPM instruction with the appropriate support code to
 allow firmware to update its own flash. The interface is always stored in
-the last 16 bytes of flash at address. (TODO: add source code library
-for common SPM commands).
+the last 16 bytes of flash at address. The `interface` directory provides
+c functions to interface with the bootloader.
+
 
 The code stored in the last 16 bytes corresponds to this assembly.
 

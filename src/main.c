@@ -12,18 +12,12 @@
 
 #define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
 
-// store in some address that we don't plan on using
+// Note: store in some address that we don't plan on using
 #define MAGIC_ADDRESS (0x200-4)
-
-#if 0
-typedef uint32_t magic_t;
-#define MAGIC_ENTER_BOOT (0xda547afd)
-#define MAGIC_ENTER_APPL (~0xda547afd)
-#else
-typedef uint16_t magic_t;
 #define MAGIC_ENTER_BOOT (0xda54)
 #define MAGIC_ENTER_APPL (~0xda54)
-#endif
+
+typedef uint16_t magic_t;
 
 void spm_leap_cmd(uint16_t addr, uint8_t spmCmd, uint16_t optValue);
 
