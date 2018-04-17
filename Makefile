@@ -9,8 +9,8 @@ F_CPU = 16000000
 # Output format. (can be srec, ihex, binary)
 FORMAT = ihex
 
-USB_VID = 6666
-USB_PID = 9999
+USB_VID = 1209
+USB_PID = BB05
 
 VPATH += src
 CFLAGS += -Isrc
