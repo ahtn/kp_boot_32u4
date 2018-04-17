@@ -71,7 +71,7 @@ static inline
 void usb_read_endpoint(uint8_t ep_number, uint8_t *dest) {
     uint8_t i;
     UENUM = ep_number;
-    uint8_t length = UEBCX;
+    uint8_t length = UEBCLX;
     for (i = 0; i < length; ++i) {
         dest[i] = UEDATX;
     }
