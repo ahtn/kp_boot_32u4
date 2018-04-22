@@ -100,16 +100,60 @@ LDFLAGS += -Wl,--section-start=.text=$(BOOT_SECTION_START)
 LDFLAGS += -Wl,--section-start=.boot_extra=$(SPM_CALL_POS)
 LDFLAGS += -Wl,--undefined=.boot_extra
 
+#######################################################################
+#                            fuse settings                            #
+#######################################################################
 
-# # 4kb
+# to program fuses settings run: `make program-fuses`
+
+#####################
+# 4kb for pro micro #
+#####################
+
 # LFUSE = 7F
-# HFUSE = D8
-# EFUSE = FB # --> EFUSE = F3
+# HFUSE = D8 # same as below, except 4kb BOOTSZ
+# EFUSE = CB
 
-# 1kb
+#######
+# 1kb #
+#######
+
+# LFUSE: 0x7F == 0b0111_1111
+# CKDIV8     : 0    -> Clock divided by 8 on reset
+# CKOUT      : 1    -> Clock output disabled
+# SUT        : 11   -> 14CK + 65ms start up time.  16K CK from power down/save
+# CKSEL3..1  : 111  -> 8-16MHz crystal
+# CKSEL0     : 1    -> (used to help choose SUT value above)
 LFUSE = 7F
+
+# HFUSE: 0xDC == 0b1101_1100
+# * OCDEN   : 1   -> OCD disabled
+# * JTAGEN  : 1   -> JTAG disabled
+# * SPIEN   : 0   -> SPI programming enabled
+# * WDTON   : 1   -> Don't force Watchdog timer on
+# * EESAVE  : 1   -> Preserve EEPROM after chip erase
+# * BOOTSZ  : 10  -> 1024 byte bootloader section
+# * BOOTRST : 0   -> On reset, start execution in the bootloader
 HFUSE = DC
+
+# EFUSE: 0xCB == 0bXX11_1011
+# * B7-B4   : XX11 -> Unused
+# * HWBE    : 0    -> Hardware boot pin disabled
+# * BODLEVEL: 011  -> Brown out trigger at 2.6V
 EFUSE = CB
+
+###############
+#  lock bits  #
+###############
+
+# to program fuses settings run: `make program-lock`
+
+# LOCK BITS: 0x2F == 0bXX101111
+# B7-B6 : XX -> Unused
+# BLB1  : 10 -> Write not allowed in bootloader (read allowed)
+# BLB0  : 11 -> Read and write allowed in application section
+# LB    : 11 -> External programmer read/write allowed
+LOCKBITS = 2F
 
 #######################################################################
 #                               recipes                               #

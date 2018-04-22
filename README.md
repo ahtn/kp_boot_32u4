@@ -54,6 +54,33 @@ still take up 4kb of flash space since the size of the bootloader cannot be
 change using this technique. Changing the size of the bootloader to 1kb still
 requires an external programmer.
 
+## Program bootloader with ISP
+
+### Build the bootloader
+
+```
+git submodule update --init --recursive
+make
+```
+
+### Flash the bootloader with ISP programmer
+
+By default the makefile is configured to use a USBasp programmer.  If you have
+one of these, you should then be able to flash the bootloader by running:
+
+```
+make program-fuses
+make program-hard
+make program-lock
+```
+
+If you want to use a different programmer, look for the `programmer options`
+section in the makefile and reconfigure the avrdude command for use with
+your ISP progammer. You should then be able to run the above commands to
+flash the bootloader.
+
+The bootloader should now be ready to use, with either the CLI or GUI.
+
 ## Enter bootloader
 Ways to enter the bootloader:
 

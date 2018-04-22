@@ -27,6 +27,16 @@ void kp_boot_jmp(void) {
     while (1);
 }
 
+/// Jump to the bootloader by using a watch dog reset
+static inline
+void kp_boot_reset(void) {
+    cli();
+    wdt_enable(WDTO_15MS);
+    wdt_reset();
+    *(uint16_t*)MAGIC_ADDRESS = 0;
+    while (1);
+}
+
 void spm_erase_page(uint16_t addr);
 void spm_load_temporary_buffer(uint8_t offset, uint16_t data_word);
 void spm_write_page(uint16_t addr);
