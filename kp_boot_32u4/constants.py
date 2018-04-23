@@ -5,8 +5,8 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-USB_VID = 0x6666
-USB_PID = 0x9999
+USB_VID = 0x1209
+USB_PID = 0xBB05
 
 EP_SIZE_VENDOR = 64
 
