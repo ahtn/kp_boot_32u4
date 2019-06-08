@@ -28,6 +28,6 @@ setup(
     packages = [app_name],
     install_requires = ['hexdump', 'intelhex', 'easyhid'],
     keywords = ['usb', 'hid', 'avr', 'atmega32u4', 'bootloader'],
-    scripts = ['kp_boot_32u4_cli.py'],
+    scripts = ['kp_boot_32u4-cli'],
     zip_safe = False
 )
